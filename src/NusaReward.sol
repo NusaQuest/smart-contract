@@ -8,12 +8,7 @@ import {ERC1155URIStorage} from "@openzeppelin/contracts/token/ERC1155/extension
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract NusaReward is
-    ERC1155URIStorage,
-    ERC1155Holder,
-    Ownable,
-    ReentrancyGuard
-{
+contract NusaReward is ERC1155URIStorage, ERC1155Holder, Ownable, ReentrancyGuard {
     //
     uint256 private constant NFT_PER_SWAP = 1;
     mapping(uint256 => uint256) private prices;
@@ -28,9 +23,7 @@ contract NusaReward is
         uint256 _urisLength
     ) {
         require(
-            _idsLength == _valuesLength &&
-                _valuesLength == _pricesLength &&
-                _pricesLength == _urisLength,
+            _idsLength == _valuesLength && _valuesLength == _pricesLength && _pricesLength == _urisLength,
             "Mismatch between IDs, values, prices, and URIs. Please ensure all inputs have the same length."
         );
         _;
@@ -40,20 +33,10 @@ contract NusaReward is
         _setBaseURI("https://gateway.pinata.cloud/ipfs/");
     }
 
-    function mint(
-        uint256[] memory _ids,
-        uint256[] memory _values,
-        uint256[] memory _prices,
-        string[] memory _uris
-    )
+    function mint(uint256[] memory _ids, uint256[] memory _values, uint256[] memory _prices, string[] memory _uris)
         external
         onlyOwner
-        validBatchInputLengths(
-            _ids.length,
-            _values.length,
-            _prices.length,
-            _uris.length
-        )
+        validBatchInputLengths(_ids.length, _values.length, _prices.length, _uris.length)
     {
         _mintBatch(address(this), _ids, _values, "");
 
@@ -65,10 +48,7 @@ contract NusaReward is
         emit Minted(_ids, _values);
     }
 
-    function transfer(
-        uint256 _nftId,
-        address _recipient
-    ) external onlyOwner nonReentrant {
+    function transfer(uint256 _nftId, address _recipient) external onlyOwner nonReentrant {
         _safeTransferFrom(address(this), _recipient, _nftId, NFT_PER_SWAP, "");
 
         emit Transfered(_recipient, _nftId);
@@ -78,10 +58,7 @@ contract NusaReward is
         return uri(_id);
     }
 
-    function balance(
-        address _user,
-        uint256 _id
-    ) external view returns (uint256) {
+    function balance(address _user, uint256 _id) external view returns (uint256) {
         return balanceOf(_user, _id);
     }
 
@@ -89,9 +66,13 @@ contract NusaReward is
         return prices[_id];
     }
 
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC1155, ERC1155Holder) returns (bool) {
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC1155, ERC1155Holder)
+        returns (bool)
+    {
         return super.supportsInterface(interfaceId);
     }
     //

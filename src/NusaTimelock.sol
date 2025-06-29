@@ -6,10 +6,8 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 
 contract NusaTimelock is TimelockController {
     //
-    constructor(
-        uint256 _minDelay,
-        address[] memory _proposers,
-        address[] memory _executors
-    ) TimelockController(_minDelay, _proposers, _executors, msg.sender) {}
+    constructor(uint256 _minDelay, address[] memory _proposers, address[] memory _executors)
+        TimelockController(_minDelay, _proposers, _executors, msg.sender)
+    {}
     //
 }

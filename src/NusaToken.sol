@@ -17,10 +17,7 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
     }
 
     modifier onlyNusaQuest() {
-        require(
-            msg.sender == s_nusaQuest,
-            "You are not authorized to perform this action."
-        );
+        require(msg.sender == s_nusaQuest, "You are not authorized to perform this action.");
         _;
     }
 
@@ -42,11 +39,7 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
         _burn(_to, _amount);
     }
 
-    function _update(
-        address _from,
-        address _to,
-        uint256 _amount
-    ) internal override(ERC20, ERC20Votes) {
+    function _update(address _from, address _to, uint256 _amount) internal override(ERC20, ERC20Votes) {
         super._update(_from, _to, _amount);
     }
 
@@ -58,9 +51,7 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
         return "mode=timestamp";
     }
 
-    function nonces(
-        address _owner
-    ) public view override(ERC20Permit, Nonces) returns (uint256) {
+    function nonces(address _owner) public view override(ERC20Permit, Nonces) returns (uint256) {
         return super.nonces(_owner);
     }
     //
