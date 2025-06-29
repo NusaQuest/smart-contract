@@ -6,9 +6,8 @@ import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {ERC1155URIStorage} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract NusaReward is ERC1155URIStorage, ERC1155Holder, Ownable, ReentrancyGuard {
+contract NusaReward is ERC1155URIStorage, ERC1155Holder, Ownable {
     //
     uint256 private constant NFT_PER_SWAP = 1;
     mapping(uint256 => uint256) private prices;
@@ -48,7 +47,7 @@ contract NusaReward is ERC1155URIStorage, ERC1155Holder, Ownable, ReentrancyGuar
         emit Minted(_ids, _values);
     }
 
-    function transfer(uint256 _nftId, address _recipient) external onlyOwner nonReentrant {
+    function transfer(uint256 _nftId, address _recipient) external onlyOwner {
         _safeTransferFrom(address(this), _recipient, _nftId, NFT_PER_SWAP, "");
 
         emit Transfered(_recipient, _nftId);
