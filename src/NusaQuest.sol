@@ -5,13 +5,13 @@ import {Governor} from "@openzeppelin/contracts/governance/Governor.sol";
 import {GovernorCountingSimple} from "@openzeppelin/contracts/governance/extensions/GovernorCountingSimple.sol";
 import {GovernorTimelockControl} from "@openzeppelin/contracts/governance/extensions/GovernorTimelockControl.sol";
 import {GovernorVotes} from "@openzeppelin/contracts/governance/extensions/GovernorVotes.sol";
-import {GovernorVotesQuorumFraction} from
-    "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
+import {GovernorVotesQuorumFraction} from "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
 import {GovernorSettings} from "@openzeppelin/contracts/governance/extensions/GovernorSettings.sol";
 import {NusaReward} from "./NusaReward.sol";
 import {NusaToken} from "./NusaToken.sol";
 import {NusaTimelock} from "./NusaTimelock.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {console} from "forge-std/console.sol";
 
 contract NusaQuest is
     Governor,
@@ -34,7 +34,7 @@ contract NusaQuest is
         REWARD
     }
 
-    mapping(uint256 => mapping(uint256 => mapping(address => string))) private s_proof;
+    mapping(uint256 => mapping(uint256 => string)) private s_proof;
     mapping(uint256 => mapping(address => Role)) private s_userRole;
     mapping(uint256 => Request) private s_requestType;
     mapping(uint256 => bool) private s_proposalExist;
@@ -48,17 +48,25 @@ contract NusaQuest is
     uint256 private constant PROPOSER_REWARD = 30;
     uint256 private constant VOTER_REWARD = 20;
     uint256 private constant PARTICIPANT_REWARD = 80;
-    uint256 private constant ACTION_COOLDOWN_PERIOD = 1 days;
+    uint256 private constant ACTION_COOLDOWN_PERIOD = 1 minutes;
 
     NusaReward private i_nusaReward;
     NusaToken private i_nusaToken;
+    NusaTimelock private i_nusaTimelock;
 
-    modifier validateRole(address _user, uint256 _proposalId, Role _expectedRole) {
+    modifier validateRole(
+        address _user,
+        uint256 _proposalId,
+        Role _expectedRole
+    ) {
         _checkRole(_user, _proposalId, _expectedRole);
         _;
     }
 
-    modifier validateProposalExistence(uint256 _proposalId, bool _expectedValue) {
+    modifier validateProposalExistence(
+        uint256 _proposalId,
+        bool _expectedValue
+    ) {
         _checkProposalExistence(_proposalId, _expectedValue);
         _;
     }
@@ -73,15 +81,22 @@ contract NusaQuest is
         _;
     }
 
-    constructor(NusaToken _token, NusaTimelock _timelock, uint48 _votingDelay, uint32 _votingPeriod)
+    constructor(
+        NusaToken _token,
+        NusaTimelock _timelock,
+        uint48 _votingDelay,
+        uint32 _votingPeriod,
+        uint256 _quorum
+    )
         Governor("NusaDAO")
         GovernorSettings(_votingDelay, _votingPeriod, 0)
         GovernorVotes(_token)
-        GovernorVotesQuorumFraction(1)
+        GovernorVotesQuorumFraction(_quorum)
         GovernorTimelockControl(_timelock)
     {
         i_nusaReward = new NusaReward(address(this));
         i_nusaToken = _token;
+        i_nusaTimelock = _timelock;
         i_nusaToken.setNusaQuest(address(this));
         s_canMint[msg.sender] = true;
     }
@@ -98,27 +113,39 @@ contract NusaQuest is
         string memory _description,
         string memory _hash,
         uint256 _questId,
-        Request _request
+        uint8 _request
     ) external validateLastActionTimestamp(msg.sender) {
-        uint256 proposalId = propose(_targets, _values, _calldatas, _description);
-        _checkProposalExistence(proposalId, false);
+        uint256 proposalId = propose(
+            _targets,
+            _values,
+            _calldatas,
+            _description
+        );
         _checkRole(msg.sender, proposalId, Role.UNREGISTERED);
 
-        s_requestType[proposalId] = _request;
+        s_requestType[proposalId] = _parseRequest(_request);
         s_proposalExist[proposalId] = true;
         s_lastActionTimestamp[msg.sender] = block.timestamp;
 
-        if (_request == Request.QUEST) {
+        if (s_requestType[proposalId] == Request.QUEST) {
             s_userRole[proposalId][msg.sender] = Role.PROPOSER;
             s_questIds.push(proposalId);
-        } else if (_request == Request.REWARD) {
+        } else if (
+            s_requestType[proposalId] == Request.REWARD &&
+            _questId != 0 &&
+            bytes(_description).length > 0
+        ) {
             s_userRole[proposalId][msg.sender] = Role.PARTICIPANT;
-            s_proof[_questId][proposalId][msg.sender] = _hash;
+            s_proof[_questId][proposalId] = _hash;
             s_submissionIds.push(proposalId);
         }
     }
 
-    function vote(uint256 _proposalId, uint8 _support, string calldata _reason)
+    function vote(
+        uint256 _proposalId,
+        uint8 _support,
+        string calldata _reason
+    )
         external
         nonReentrant
         validateProposalExistence(_proposalId, true)
@@ -136,25 +163,25 @@ contract NusaQuest is
         i_nusaReward.transfer(_nftId, msg.sender);
     }
 
-    function claim(uint256 _proposalId, address _user) external {
-        Role role = s_userRole[_proposalId][_user];
-
-        if (role == Role.PROPOSER) {
-            _checkGovernance();
-            i_nusaToken.mint(_user, PROPOSER_REWARD);
-        } else if (role == Role.PARTICIPANT) {
-            _checkGovernance();
-            i_nusaToken.mint(_user, PARTICIPANT_REWARD);
-        } else if (role == Role.VOTER) {
-            _checkVoter(_proposalId, msg.sender);
-            i_nusaToken.mint(_user, VOTER_REWARD);
-        }
+    function claimProposerReward(address _user) external onlyGovernance {
+        i_nusaToken.mint(_user, PROPOSER_REWARD);
     }
 
-    function mint(uint256[] memory _ids, uint256[] memory _values, uint256[] memory _prices, string[] memory _uris)
-        external
-        validateMintAccess(msg.sender)
-    {
+    function claimParticipantReward(address _user) external onlyGovernance {
+        i_nusaToken.mint(_user, PARTICIPANT_REWARD);
+    }
+
+    function claimVoterReward(uint256 _proposalId, address _user) external {
+        _checkVoter(_proposalId, _user);
+        i_nusaToken.mint(_user, VOTER_REWARD);
+    }
+
+    function mint(
+        uint256[] memory _ids,
+        uint256[] memory _values,
+        uint256[] memory _prices,
+        string[] memory _uris
+    ) external validateMintAccess(msg.sender) {
         i_nusaReward.mint(_ids, _values, _prices, _uris);
     }
 
@@ -166,7 +193,10 @@ contract NusaQuest is
         return i_nusaReward.nftPrice(_id);
     }
 
-    function nftBalance(address _user, uint256 _nftId) external view returns (uint256) {
+    function nftBalance(
+        address _user,
+        uint256 _nftId
+    ) external view returns (uint256) {
         return i_nusaReward.balance(_user, _nftId);
     }
 
@@ -182,11 +212,21 @@ contract NusaQuest is
         return s_alreadyDelegate[_user];
     }
 
-    function votingPeriod() public view override(Governor, GovernorSettings) returns (uint256) {
+    function votingPeriod()
+        public
+        view
+        override(Governor, GovernorSettings)
+        returns (uint256)
+    {
         return super.votingPeriod();
     }
 
-    function votingDelay() public view override(Governor, GovernorSettings) returns (uint256) {
+    function votingDelay()
+        public
+        view
+        override(Governor, GovernorSettings)
+        returns (uint256)
+    {
         return super.votingDelay();
     }
 
@@ -194,11 +234,17 @@ contract NusaQuest is
         return NusaTimelock(payable(timelock())).getMinDelay();
     }
 
-    function proof(uint256 _questId, uint256 _submissionId, address _user) external view returns (string memory) {
-        return s_proof[_questId][_submissionId][_user];
+    function proof(
+        uint256 _questId,
+        uint256 _submissionId
+    ) external view returns (string memory) {
+        return s_proof[_questId][_submissionId];
     }
 
-    function userRole(uint256 _proposalId, address _user) external view returns (Role) {
+    function userRole(
+        uint256 _proposalId,
+        address _user
+    ) external view returns (Role) {
         return s_userRole[_proposalId][_user];
     }
 
@@ -218,26 +264,50 @@ contract NusaQuest is
         return s_proposalExist[_proposalId];
     }
 
-    function lastActionTimestamp(address _user) external view returns (uint256) {
+    function lastActionTimestamp(
+        address _user
+    ) external view returns (uint256) {
         return s_lastActionTimestamp[_user];
     }
 
-    function _checkRole(address _user, uint256 _proposalId, Role _expectedRole) private view {
-        require(s_userRole[_proposalId][_user] == _expectedRole, "You are not authorized to perform this action.");
+    function _parseRequest(uint8 _request) private pure returns (Request) {
+        return Request(_request);
     }
 
-    function _checkProposalExistence(uint256 _proposalId, bool _expectedValue) private view {
-        require(s_proposalExist[_proposalId] == _expectedValue, "Invalid proposal existence.");
+    function _checkRole(
+        address _user,
+        uint256 _proposalId,
+        Role _expectedRole
+    ) private view {
+        require(
+            s_userRole[_proposalId][_user] == _expectedRole,
+            "You are not authorized to perform this action."
+        );
+    }
+
+    function _checkProposalExistence(
+        uint256 _proposalId,
+        bool _expectedValue
+    ) private view {
+        require(
+            s_proposalExist[_proposalId] == _expectedValue,
+            "Invalid proposal existence."
+        );
     }
 
     function _checkVoter(uint256 _proposalId, address _user) private view {
         _checkRole(_user, _proposalId, Role.VOTER);
-        require(state(_proposalId) == ProposalState.Executed, "Proposal must be executed first.");
+        require(
+            state(_proposalId) == ProposalState.Executed,
+            "Proposal must be executed first."
+        );
     }
 
     function _checkLastActionTimestamp(address _user) private view {
         require(
-            s_lastActionTimestamp[_user] + ACTION_COOLDOWN_PERIOD > block.timestamp,
+            (block.timestamp >
+                s_lastActionTimestamp[_user] + ACTION_COOLDOWN_PERIOD) ||
+                (s_lastActionTimestamp[_user] == 0),
             "Cooldown period between actions is not finished."
         );
     }
@@ -246,11 +316,18 @@ contract NusaQuest is
         require(s_canMint[_user], "You do not have permission to mint an NFT.");
     }
 
-    function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
+    function proposalThreshold()
+        public
+        view
+        override(Governor, GovernorSettings)
+        returns (uint256)
+    {
         return super.proposalThreshold();
     }
 
-    function state(uint256 proposalId)
+    function state(
+        uint256 proposalId
+    )
         public
         view
         override(Governor, GovernorTimelockControl)
@@ -259,12 +336,9 @@ contract NusaQuest is
         return super.state(proposalId);
     }
 
-    function proposalNeedsQueuing(uint256 proposalId)
-        public
-        view
-        override(Governor, GovernorTimelockControl)
-        returns (bool)
-    {
+    function proposalNeedsQueuing(
+        uint256 proposalId
+    ) public view override(Governor, GovernorTimelockControl) returns (bool) {
         return super.proposalNeedsQueuing(proposalId);
     }
 
@@ -275,7 +349,14 @@ contract NusaQuest is
         bytes[] memory calldatas,
         bytes32 descriptionHash
     ) internal override(Governor, GovernorTimelockControl) returns (uint48) {
-        return super._queueOperations(proposalId, targets, values, calldatas, descriptionHash);
+        return
+            super._queueOperations(
+                proposalId,
+                targets,
+                values,
+                calldatas,
+                descriptionHash
+            );
     }
 
     function _executeOperations(
@@ -285,7 +366,13 @@ contract NusaQuest is
         bytes[] memory calldatas,
         bytes32 descriptionHash
     ) internal override(Governor, GovernorTimelockControl) {
-        super._executeOperations(proposalId, targets, values, calldatas, descriptionHash);
+        super._executeOperations(
+            proposalId,
+            targets,
+            values,
+            calldatas,
+            descriptionHash
+        );
     }
 
     function _cancel(
@@ -297,7 +384,12 @@ contract NusaQuest is
         return super._cancel(targets, values, calldatas, descriptionHash);
     }
 
-    function _executor() internal view override(Governor, GovernorTimelockControl) returns (address) {
+    function _executor()
+        internal
+        view
+        override(Governor, GovernorTimelockControl)
+        returns (address)
+    {
         return super._executor();
     }
     //

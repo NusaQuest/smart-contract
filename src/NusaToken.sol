@@ -30,7 +30,10 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * @dev Restricts access to functions to the NusaQuest contract only.
      */
     modifier onlyNusaQuest() {
-        require(msg.sender == s_nusaQuest, "You are not authorized to perform this action.");
+        require(
+            msg.sender == s_nusaQuest,
+            "You are not authorized to perform this action."
+        );
         _;
     }
 
@@ -81,7 +84,11 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * @dev Handles token transfers and updates vote checkpoints accordingly.
      * Required override for ERC20Votes to track voting power.
      */
-    function _update(address _from, address _to, uint256 _amount) internal override(ERC20, ERC20Votes) {
+    function _update(
+        address _from,
+        address _to,
+        uint256 _amount
+    ) internal override(ERC20, ERC20Votes) {
         super._update(_from, _to, _amount);
     }
 
@@ -103,7 +110,9 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * @dev Returns the current nonce for the owner (used for permit signatures).
      * Resolves conflict between ERC20Permit and Nonces.
      */
-    function nonces(address _owner) public view override(ERC20Permit, Nonces) returns (uint256) {
+    function nonces(
+        address _owner
+    ) public view override(ERC20Permit, Nonces) returns (uint256) {
         return super.nonces(_owner);
     }
 }

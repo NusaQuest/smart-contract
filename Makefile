@@ -6,7 +6,7 @@ build:
 	forge build
 
 test:
-	forge test
+	forge test -vv
 
 coverage:
 	forge coverage

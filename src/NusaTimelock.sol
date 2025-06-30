@@ -1,25 +1,51 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.28;
 
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 
 /**
  * @title NusaTimelock
- * @dev A customized TimelockController used in NusaQuest system to enforce delayed execution of proposals.
+ * @dev A customized TimelockController used in the NusaQuest governance system to enforce delayed execution of proposals.
  *
- * Inherits from OpenZeppelin's TimelockController and simply forwards constructor parameters.
- * Timelock ensures decentralization by introducing a delay between proposal approval and execution.
+ * Inherits from OpenZeppelin's TimelockController and forwards constructor parameters.
+ * This contract introduces a custom one-time setup function to assign governance roles.
  */
 contract NusaTimelock is TimelockController {
+    /// @dev Internal flag to ensure roles are only granted once.
+    bool private _isInit;
+
+    /**
+     * @dev Modifier to ensure a function can only be called once.
+     * Used to prevent re-granting of roles after initial setup.
+     */
+    modifier onlyOnce() {
+        require(!_isInit, "NusaTimelock: roles already granted.");
+        _;
+    }
+
     /**
      * @notice Constructor for the NusaTimelock contract.
      * @param _minDelay The minimum delay (in seconds) before a queued operation can be executed.
-     * @param _proposers List of addresses that can propose operations.
-     * @param _executors List of addresses that can execute queued operations.
-     * @param _admin Optional admin address with role-granting and revoking permissions.
+     * @param _proposers Initial list of addresses that can propose operations.
+     * @param _executors Initial list of addresses that can execute queued operations.
+     * @param _admin Address with permission to grant and revoke roles. Can be set to address(0) for trustless setup.
      */
-    constructor(uint256 _minDelay, address[] memory _proposers, address[] memory _executors, address _admin)
-        TimelockController(_minDelay, _proposers, _executors, _admin)
-    {}
+    constructor(
+        uint256 _minDelay,
+        address[] memory _proposers,
+        address[] memory _executors,
+        address _admin
+    ) TimelockController(_minDelay, _proposers, _executors, _admin) {}
+
+    /**
+     * @notice Grants all essential roles (PROPOSER, CANCELLER, EXECUTOR) to the NusaQuest Governor contract.
+     * @dev Can only be called once due to the `onlyOnce` modifier. Intended for initial governance setup.
+     * @param _nusaQuest Address of the NusaQuest Governor contract.
+     */
+    function grantRole(address _nusaQuest) external onlyOnce {
+        _grantRole(PROPOSER_ROLE, _nusaQuest);
+        _grantRole(CANCELLER_ROLE, _nusaQuest);
+        _grantRole(EXECUTOR_ROLE, _nusaQuest);
+        _isInit = true;
+    }
 }

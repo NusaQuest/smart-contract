@@ -31,7 +31,9 @@ contract NusaReward is ERC1155URIStorage, ERC1155Holder, Ownable {
         uint256 _urisLength
     ) {
         require(
-            _idsLength == _valuesLength && _valuesLength == _pricesLength && _pricesLength == _urisLength,
+            _idsLength == _valuesLength &&
+                _valuesLength == _pricesLength &&
+                _pricesLength == _urisLength,
             "Mismatch between IDs, values, prices, and URIs. Please ensure all inputs have the same length."
         );
         _;
@@ -53,10 +55,20 @@ contract NusaReward is ERC1155URIStorage, ERC1155Holder, Ownable {
      * @param _prices Array of prices per NFT.
      * @param _uris Array of metadata URIs per token ID.
      */
-    function mint(uint256[] memory _ids, uint256[] memory _values, uint256[] memory _prices, string[] memory _uris)
+    function mint(
+        uint256[] memory _ids,
+        uint256[] memory _values,
+        uint256[] memory _prices,
+        string[] memory _uris
+    )
         external
         onlyOwner
-        validBatchInputLengths(_ids.length, _values.length, _prices.length, _uris.length)
+        validBatchInputLengths(
+            _ids.length,
+            _values.length,
+            _prices.length,
+            _uris.length
+        )
     {
         _mintBatch(address(this), _ids, _values, "");
 
@@ -89,7 +101,10 @@ contract NusaReward is ERC1155URIStorage, ERC1155Holder, Ownable {
      * @param _user The address to query.
      * @param _id The NFT token ID to check.
      */
-    function balance(address _user, uint256 _id) external view returns (uint256) {
+    function balance(
+        address _user,
+        uint256 _id
+    ) external view returns (uint256) {
         return balanceOf(_user, _id);
     }
 
@@ -104,13 +119,9 @@ contract NusaReward is ERC1155URIStorage, ERC1155Holder, Ownable {
     /**
      * @dev Required override for interface support with multiple base contracts.
      */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(ERC1155, ERC1155Holder)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC1155, ERC1155Holder) returns (bool) {
         return super.supportsInterface(interfaceId);
     }
 }
