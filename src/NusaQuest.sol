@@ -12,6 +12,7 @@ import {NusaToken} from "./NusaToken.sol";
 import {NusaTimelock} from "./NusaTimelock.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {console} from "forge-std/console.sol";
+import {Errors} from "./lib/Errors.l.sol";
 
 contract NusaQuest is
     Governor,
@@ -29,25 +30,24 @@ contract NusaQuest is
         PROPOSER,
         PARTICIPANT
     }
-    enum Request {
-        QUEST,
-        REWARD
+    enum Action {
+        PROPOSE,
+        VOTE
     }
 
-    mapping(uint256 => mapping(uint256 => string)) private s_proof;
+    mapping(uint256 => mapping(address => string)) private s_proof;
     mapping(uint256 => mapping(address => Role)) private s_userRole;
-    mapping(uint256 => Request) private s_requestType;
     mapping(uint256 => bool) private s_proposalExist;
-    mapping(address => uint256) private s_lastActionTimestamp;
+    mapping(address => uint256) private s_lastProposeTimestamp;
+    mapping(address => uint256) private s_lastVoteTimestamp;
     mapping(address => bool) private s_canMint;
-    mapping(address => bool) private s_alreadyDelegate;
 
-    uint256[] private s_questIds;
-    uint256[] private s_submissionIds;
+    uint256[] private s_proposalIds;
 
     uint256 private constant PROPOSER_REWARD = 30;
     uint256 private constant VOTER_REWARD = 20;
     uint256 private constant PARTICIPANT_REWARD = 80;
+    uint256 private constant DAILY_REWARD = 2;
     uint256 private constant ACTION_COOLDOWN_PERIOD = 1 minutes;
 
     NusaReward private i_nusaReward;
@@ -57,27 +57,38 @@ contract NusaQuest is
     modifier validateRole(
         address _user,
         uint256 _proposalId,
-        Role _expectedRole
+        Role _expected
     ) {
-        _checkRole(_user, _proposalId, _expectedRole);
+        _checkRole(_user, _proposalId, _expected);
         _;
     }
 
-    modifier validateProposalExistence(
-        uint256 _proposalId,
-        bool _expectedValue
-    ) {
-        _checkProposalExistence(_proposalId, _expectedValue);
+    modifier validateProposalExistence(uint256 _proposalId, bool _expected) {
+        _checkProposalExistence(_proposalId, _expected);
         _;
     }
 
-    modifier validateLastActionTimestamp(address _user) {
-        _checkLastActionTimestamp(_user);
+    modifier validateLastActionTimestamp(address _user, Action _action) {
+        _checkLastActionTimestamp(_user, _action);
         _;
     }
 
     modifier validateMintAccess(address _user) {
         _checkMintAccess(_user);
+        _;
+    }
+
+    modifier validateProofExistence(
+        uint256 _proposalId,
+        address _user,
+        bool _expected
+    ) {
+        _checkProofExistence(_proposalId, _user, _expected);
+        _;
+    }
+
+    modifier validateState(uint256 _proposalId, ProposalState _expected) {
+        _checkState(_proposalId, _expected);
         _;
     }
 
@@ -101,44 +112,23 @@ contract NusaQuest is
         s_canMint[msg.sender] = true;
     }
 
-    function delegate() external {
-        i_nusaToken.delegate(msg.sender);
-        s_alreadyDelegate[msg.sender] = true;
-    }
-
     function initiate(
         address[] memory _targets,
         uint256[] memory _values,
         bytes[] memory _calldatas,
-        string memory _description,
-        string memory _hash,
-        uint256 _questId,
-        uint8 _request
-    ) external validateLastActionTimestamp(msg.sender) {
+        string memory _description
+    ) external validateLastActionTimestamp(msg.sender, Action.PROPOSE) {
         uint256 proposalId = propose(
             _targets,
             _values,
             _calldatas,
             _description
         );
-        _checkRole(msg.sender, proposalId, Role.UNREGISTERED);
 
-        s_requestType[proposalId] = _parseRequest(_request);
         s_proposalExist[proposalId] = true;
-        s_lastActionTimestamp[msg.sender] = block.timestamp;
-
-        if (s_requestType[proposalId] == Request.QUEST) {
-            s_userRole[proposalId][msg.sender] = Role.PROPOSER;
-            s_questIds.push(proposalId);
-        } else if (
-            s_requestType[proposalId] == Request.REWARD &&
-            _questId != 0 &&
-            bytes(_description).length > 0
-        ) {
-            s_userRole[proposalId][msg.sender] = Role.PARTICIPANT;
-            s_proof[_questId][proposalId] = _hash;
-            s_submissionIds.push(proposalId);
-        }
+        s_lastProposeTimestamp[msg.sender] = block.timestamp;
+        s_userRole[proposalId][msg.sender] = Role.PROPOSER;
+        s_proposalIds.push(proposalId);
     }
 
     function vote(
@@ -147,14 +137,13 @@ contract NusaQuest is
         string calldata _reason
     )
         external
-        nonReentrant
         validateProposalExistence(_proposalId, true)
-        validateLastActionTimestamp(msg.sender)
+        validateLastActionTimestamp(msg.sender, Action.VOTE)
         validateRole(msg.sender, _proposalId, Role.UNREGISTERED)
         returns (uint256)
     {
         s_userRole[_proposalId][msg.sender] = Role.VOTER;
-        s_lastActionTimestamp[msg.sender] = block.timestamp;
+        s_lastVoteTimestamp[msg.sender] = block.timestamp;
         return castVoteWithReason(_proposalId, _support, _reason);
     }
 
@@ -167,13 +156,27 @@ contract NusaQuest is
         i_nusaToken.mint(_user, PROPOSER_REWARD);
     }
 
-    function claimParticipantReward(address _user) external onlyGovernance {
-        i_nusaToken.mint(_user, PARTICIPANT_REWARD);
+    function claimVoterReward(
+        uint256 _proposalId
+    )
+        external
+        validateRole(msg.sender, _proposalId, Role.VOTER)
+        validateState(_proposalId, ProposalState.Executed)
+    {
+        i_nusaToken.mint(msg.sender, VOTER_REWARD);
     }
 
-    function claimVoterReward(uint256 _proposalId, address _user) external {
-        _checkVoter(_proposalId, _user);
-        i_nusaToken.mint(_user, VOTER_REWARD);
+    function claimParticipantReward(
+        uint256 _proposalId,
+        string memory _proof
+    )
+        external
+        validateProposalExistence(_proposalId, true)
+        validateProofExistence(_proposalId, msg.sender, false)
+        validateState(_proposalId, ProposalState.Executed)
+    {
+        s_proof[_proposalId][msg.sender] = _proof;
+        i_nusaToken.mint(msg.sender, PARTICIPANT_REWARD);
     }
 
     function mint(
@@ -208,10 +211,6 @@ contract NusaQuest is
         return s_canMint[_user];
     }
 
-    function isAlreadyDelegate(address _user) external view returns (bool) {
-        return s_alreadyDelegate[_user];
-    }
-
     function votingPeriod()
         public
         view
@@ -235,85 +234,98 @@ contract NusaQuest is
     }
 
     function proof(
-        uint256 _questId,
-        uint256 _submissionId
+        uint256 _proposalId,
+        address _user
     ) external view returns (string memory) {
-        return s_proof[_questId][_submissionId];
+        return s_proof[_proposalId][_user];
     }
 
     function userRole(
         uint256 _proposalId,
         address _user
-    ) external view returns (Role) {
-        return s_userRole[_proposalId][_user];
+    ) external view returns (uint8) {
+        return uint8(s_userRole[_proposalId][_user]);
     }
 
-    function questIds() external view returns (uint256[] memory) {
-        return s_questIds;
-    }
-
-    function submissionIds() external view returns (uint256[] memory) {
-        return s_submissionIds;
-    }
-
-    function requestType(uint256 _proposalId) external view returns (Request) {
-        return s_requestType[_proposalId];
+    function proposalIds() external view returns (uint256[] memory) {
+        return s_proposalIds;
     }
 
     function proposalExist(uint256 _proposalId) external view returns (bool) {
         return s_proposalExist[_proposalId];
     }
 
-    function lastActionTimestamp(
+    function lastProposeTimestamp(
         address _user
     ) external view returns (uint256) {
-        return s_lastActionTimestamp[_user];
+        return s_lastProposeTimestamp[_user];
     }
 
-    function _parseRequest(uint8 _request) private pure returns (Request) {
-        return Request(_request);
+    function lastVoteTimestamp(address _user) external view returns (uint256) {
+        return s_lastVoteTimestamp[_user];
     }
 
     function _checkRole(
         address _user,
         uint256 _proposalId,
-        Role _expectedRole
+        Role _expected
     ) private view {
         require(
-            s_userRole[_proposalId][_user] == _expectedRole,
-            "You are not authorized to perform this action."
+            s_userRole[_proposalId][_user] == _expected,
+            Errors.UnauthorizedRole(_user, _proposalId, uint8(_expected))
         );
     }
 
     function _checkProposalExistence(
         uint256 _proposalId,
-        bool _expectedValue
+        bool _expected
     ) private view {
         require(
-            s_proposalExist[_proposalId] == _expectedValue,
-            "Invalid proposal existence."
+            s_proposalExist[_proposalId] == _expected,
+            Errors.InvalidProposalExistence(_proposalId, _expected)
         );
     }
 
-    function _checkVoter(uint256 _proposalId, address _user) private view {
-        _checkRole(_user, _proposalId, Role.VOTER);
+    function _checkProofExistence(
+        uint256 _proposalId,
+        address _user,
+        bool _expected
+    ) private view {
         require(
-            state(_proposalId) == ProposalState.Executed,
-            "Proposal must be executed first."
+            _expected
+                ? bytes(s_proof[_proposalId][_user]).length > 0
+                : bytes(s_proof[_proposalId][_user]).length == 0,
+            Errors.InvalidProofExistence(_proposalId, _user, _expected)
         );
     }
 
-    function _checkLastActionTimestamp(address _user) private view {
+    function _checkState(
+        uint256 _proposalId,
+        ProposalState _state
+    ) private view {
         require(
-            (block.timestamp >
-                s_lastActionTimestamp[_user] + ACTION_COOLDOWN_PERIOD) ||
-                (s_lastActionTimestamp[_user] == 0),
-            "Cooldown period between actions is not finished."
+            state(_proposalId) == _state,
+            Errors.InvalidProposalState(_proposalId)
+        );
+    }
+
+    function _checkLastActionTimestamp(
+        address _user,
+        Action _action
+    ) private view {
+        uint256 lastActionTime = _action == Action.PROPOSE
+            ? s_lastProposeTimestamp[_user]
+            : s_lastVoteTimestamp[_user];
+
+        require(
+            block.timestamp > lastActionTime + ACTION_COOLDOWN_PERIOD ||
+                lastActionTime == 0,
+            Errors.ActionOnCooldown(_user, uint8(_action))
         );
     }
 
     function _checkMintAccess(address _user) private view {
-        require(s_canMint[_user], "You do not have permission to mint an NFT.");
+        require(s_canMint[_user], Errors.MintAccessDenied(_user));
     }
 
     function proposalThreshold()

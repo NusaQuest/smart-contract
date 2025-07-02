@@ -6,6 +6,7 @@ import {ERC20Votes} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Vo
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {console} from "forge-std/console.sol";
 
 /**
  * @title NusaToken
@@ -18,11 +19,26 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
     /// @notice Address of the authorized governance contract (NusaQuest)
     address private s_nusaQuest;
 
+    /// @notice Initial reward given to a new user upon delegation
+    uint256 private constant NEW_USER_REWARD = 10;
+
+    /// @dev Tracks users who have already delegated
+    mapping(address => bool) private s_alreadyDelegate;
+
     /**
      * @dev Restricts a function to be callable only once — used to set the governance contract.
      */
     modifier onlyOnce() {
         require(s_nusaQuest == address(0), "Governance already set.");
+        _;
+    }
+
+    /**
+     * @dev Restricts a user from calling delegate() more than once.
+     * Used to ensure that delegation and reward minting only happen on the first delegation.
+     */
+    modifier onlyNewDelegator() {
+        require(!s_alreadyDelegate[msg.sender], "Already delegated before.");
         _;
     }
 
@@ -81,8 +97,11 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
     }
 
     /**
-     * @dev Handles token transfers and updates vote checkpoints accordingly.
-     * Required override for ERC20Votes to track voting power.
+     * @dev Internal hook to update balances and delegate checkpoints.
+     * Overrides required for ERC20Votes compatibility.
+     * @param _from Sender address
+     * @param _to Recipient address
+     * @param _amount Token amount transferred
      */
     function _update(
         address _from,
@@ -93,22 +112,31 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
     }
 
     /**
-     * @dev Returns the current clock value using timestamp (used by ERC6372 for time-based governance).
+     * @notice Delegates voting power to the sender's own address.
+     * @dev Also mints an initial reward if user hasn't delegated before.
+     * Helps bootstrap governance participation.
+     * Uses onlyNewDelegator modifier to ensure it's only done once.
      */
-    function clock() public view override returns (uint48) {
-        return uint48(block.timestamp);
+    function delegate() external onlyNewDelegator {
+        super.delegate(msg.sender);
+        s_alreadyDelegate[msg.sender] = true;
+        _mint(msg.sender, NEW_USER_REWARD);
     }
 
     /**
-     * @dev Describes the mode of the clock — "timestamp" mode (required by ERC6372).
+     * @notice Checks if a given user has already delegated their voting power.
+     * @param _user Address to check
+     * @return True if user has delegated, false otherwise
      */
-    function CLOCK_MODE() public pure override returns (string memory) {
-        return "mode=timestamp";
+    function isAlreadyDelegate(address _user) external view returns (bool) {
+        return s_alreadyDelegate[_user];
     }
 
     /**
-     * @dev Returns the current nonce for the owner (used for permit signatures).
-     * Resolves conflict between ERC20Permit and Nonces.
+     * @notice Returns the current nonce for a user (used in permit signatures).
+     * @dev Required override due to conflict between ERC20Permit and Nonces.
+     * @param _owner Address of the token holder
+     * @return Current nonce value
      */
     function nonces(
         address _owner
