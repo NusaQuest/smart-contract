@@ -7,33 +7,47 @@ import {NusaToken} from "../src/NusaToken.sol";
 import {NusaTimelock} from "../src/NusaTimelock.sol";
 import {Errors} from "../src/lib/Errors.l.sol";
 
+/// @title NusaQuestTest
+/// @dev Unit test contract for NusaQuest governance logic, including delegation, proposal lifecycle, voting, and reward claiming.
 contract NusaQuestTest is Test {
-    //
+    /// @dev Core contract instances and reusable test data
     NusaQuest private nusaQuest;
     NusaToken private nusaToken;
 
+    /// @dev Test addresses representing different actors
     address private constant BOB = address(1);
     address private constant ALICE = address(2);
     address private constant CHARLIE = address(3);
 
+    /// @dev Reusable arrays for constructing proposals data
     address[] private _targets = new address[](1);
     uint256[] private _values = new uint256[](1);
     bytes[] private _calldatas = new bytes[](1);
     string private _description = "lorem ipsum dolor sit amet";
 
+    /// @dev Reusable arrays for constructing NFTs data
     uint256[] private _ids = new uint256[](2);
     uint256[] private _nftValues = new uint256[](2);
     uint256[] private _prices = new uint256[](2);
     string[] private _uris = new string[](2);
 
+    /// @dev Role configuration for timelock deployment
     address[] private i_proposers;
     address[] private i_executors;
     address private i_admin;
 
+    /**
+     * @notice Sets up the test environment before each test runs.
+     * - Deploys the NusaToken (ERC20 token with vote delegation support).
+     * - Deploys the NusaTimelock (timelock controller with role-based permissions).
+     * - Deploys the NusaQuest contract (governance-based quest/proposal logic).
+     * - Configures governance parameters: voting delay, voting period, quorum, and execution delay.
+     * - Grants executor permissions to NusaQuest so it can execute queued proposals through the timelock.
+     */
     function setUp() public {
         uint256 minDelay = 1 minutes;
-        uint32 votingDelay = 30; // 1 minutes (60 / 2)
-        uint32 votingPeriod = 150; // 5 minutes ((60 * 5) / 2)
+        uint32 votingDelay = 30; // 1 minute (approx. 30 blocks assuming 2s per block)
+        uint32 votingPeriod = 150; // 5 minutes (approx. 150 blocks)
         uint256 quorum = 1;
 
         nusaToken = new NusaToken();
@@ -54,6 +68,12 @@ contract NusaQuestTest is Test {
         nusaTimelock.grantRole(address(nusaQuest));
     }
 
+    /**
+     * @notice Tests that a user can successfully delegate their voting power.
+     * - Delegates from ALICE
+     * - Checks that ALICE is marked as having delegated
+     * - Verifies that ALICE receives the initial 10 token reward
+     */
     function testSuccessfullyDelegate() public {
         vm.startPrank(ALICE);
         nusaToken.delegate();
@@ -68,6 +88,12 @@ contract NusaQuestTest is Test {
         assertEq(expectedBalance, actualBalance);
     }
 
+    /**
+     * @notice Tests that a user can successfully initiate a new proposal.
+     * - Proposal calls `claimProposerReward(address)`
+     * - Confirms that the proposal is stored
+     * - Checks that BOB is assigned the correct role (Proposer = 2)
+     */
     function testSuccessfullyInitiateProposal() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
@@ -90,6 +116,12 @@ contract NusaQuestTest is Test {
         assertEq(expectedRole, actualRole);
     }
 
+    /**
+     * @notice Tests that a proposer can cancel their proposal before it becomes active.
+     * - BOB initiates a proposal
+     * - Immediately cancels it before voting starts
+     * - No assertion needed, test passes if no revert occurs
+     */
     function testSuccessfullyCancelProposal() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
@@ -108,6 +140,12 @@ contract NusaQuestTest is Test {
         vm.stopPrank();
     }
 
+    /**
+     * @notice Reverts when trying to cancel a proposal that has already become active.
+     * - BOB initiates a proposal.
+     * - Voting delay passes, making the proposal active.
+     * - Cancelling at this point should revert.
+     */
     function testRevertIfCancelProposalThatAlreadyActive() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
@@ -132,6 +170,12 @@ contract NusaQuestTest is Test {
         vm.stopPrank();
     }
 
+    /**
+     * @notice Reverts when trying to create a proposal that already exists.
+     * - BOB initiates a proposal.
+     * - After voting delay, tries to re-initiate the same proposal with same calldata + description hash.
+     * - Should revert due to duplicate proposal hash.
+     */
     function testRevertIfProposalAlreadyExist() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
@@ -151,6 +195,12 @@ contract NusaQuestTest is Test {
         vm.stopPrank();
     }
 
+    /**
+     * @notice Reverts when user tries to initiate another proposal during cooldown period.
+     * - BOB initiates a proposal.
+     * - Immediately attempts to create another one.
+     * - Should revert due to action cooldown restriction.
+     */
     function testRevertIfActionStillOnCooldown() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
@@ -177,6 +227,13 @@ contract NusaQuestTest is Test {
         vm.stopPrank();
     }
 
+    /**
+     * @notice Successfully casts a vote on an active proposal.
+     * - ALICE delegates her tokens to gain voting power.
+     * - BOB creates a proposal.
+     * - ALICE votes after the proposal becomes active.
+     * - Asserts vote counts are correctly recorded (for/against/abstain).
+     */
     function testSuccessfullyVoteOnQuest() public {
         vm.startPrank(ALICE);
         nusaToken.delegate();
@@ -221,6 +278,11 @@ contract NusaQuestTest is Test {
         assertEq(expectedAbstainVotes, actualAbstainVotes);
     }
 
+    /**
+     * @notice Reverts when attempting to vote on a proposal that doesn't exist.
+     * - ALICE tries to vote on proposal ID 1, which has not been created.
+     * - Should revert with InvalidProposalExistence error.
+     */
     function testRevertIfProposalDoesNotExist() public {
         uint256 proposalId = 1;
         uint8 support = 1;
@@ -238,6 +300,12 @@ contract NusaQuestTest is Test {
         vm.stopPrank();
     }
 
+    /**
+     * @notice Reverts when the proposer attempts to vote on their own proposal.
+     * - BOB delegates tokens and initiates a proposal.
+     * - Attempts to vote on the same proposal after it becomes active.
+     * - Should revert with UnauthorizedRole error (proposer cannot vote).
+     */
     function testRevertIfProposerVotesOnTheirOwnProposal() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
@@ -272,6 +340,11 @@ contract NusaQuestTest is Test {
         vm.stopPrank();
     }
 
+    /**
+     * @notice Successfully mints an NFT with correct values and metadata.
+     * - Sets NFT ID, value, price, and URI.
+     * - Verifies that the stored URI and price match expectations.
+     */
     function testCanMintNFT() public {
         _ids.push(1);
         _nftValues.push(2);
@@ -292,6 +365,11 @@ contract NusaQuestTest is Test {
         );
     }
 
+    /**
+     * @notice Reverts when a non-authorized user attempts to mint NFTs.
+     * - BOB (not the authorized NusaQuest contract) tries to call mint().
+     * - Should revert with MintAccessDenied error.
+     */
     function testRevertIfNonAuthorizedMintNFT() public {
         _ids.push(1);
         _nftValues.push(2);
@@ -306,6 +384,11 @@ contract NusaQuestTest is Test {
         vm.stopPrank();
     }
 
+    /**
+     * @notice Reverts when minting NFT with mismatched input array lengths.
+     * - Length of IDs, values, prices, and URIs arrays must match.
+     * - Should revert with InvalidInputLength error.
+     */
     function testRevertIfInvalidLengthWhileMintNFT() public {
         _ids.push(1);
         _ids.push(2);
@@ -325,6 +408,12 @@ contract NusaQuestTest is Test {
         nusaQuest.mint(_ids, _nftValues, _prices, _uris);
     }
 
+    /**
+     * @notice Successfully swaps fungible tokens for an NFT.
+     * - NusaQuest mints an NFT with a price of 5 FT.
+     * - ALICE delegates to receive FT, then swaps for the NFT.
+     * - Verifies updated FT and NFT balances.
+     */
     function testSuccessfullySwap() public {
         _ids.push(1);
         _nftValues.push(2);
@@ -347,6 +436,13 @@ contract NusaQuestTest is Test {
         assertEq(expectedNftBalance, actualNftBalance);
     }
 
+    /**
+     * @notice Successfully completes the full proposal lifecycle and distributes rewards.
+     * - BOB creates a proposal to claim his reward.
+     * - ALICE delegates, votes in favor, and the proposal gets queued and executed.
+     * - ALICE claims voter reward, CHARLIE claims participant reward.
+     * - Verifies all final FT balances and CHARLIE's proof.
+     */
     function testSuccessfullyExecuteProposalAndDoQuest() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
@@ -417,6 +513,11 @@ contract NusaQuestTest is Test {
         );
     }
 
+    /**
+     * @notice Reverts when a user attempts to claim reward before the proposal is executed.
+     * - ALICE votes on a queued proposal but tries to claim reward before execution.
+     * - Should revert with InvalidProposalState error (proposal not yet executed).
+     */
     function testRevertIfClaimBeforeExecution() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
@@ -465,6 +566,14 @@ contract NusaQuestTest is Test {
         vm.stopPrank();
     }
 
+    /**
+     * @notice Reverts when a participant tries to do a quest after the deadline has passed.
+     * - BOB creates and ALICE votes on a proposal.
+     * - Proposal is executed successfully.
+     * - ALICE claims voter reward.
+     * - CHARLIE tries to claim participant reward 8 days after execution.
+     * - Should revert with QuestExpired error (deadline is 7 days after execution).
+     */
     function testRevertIfDoQuestAfterDeadline() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
