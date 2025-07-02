@@ -90,6 +90,48 @@ contract NusaQuestTest is Test {
         assertEq(expectedRole, actualRole);
     }
 
+    function testSuccessfullyCancelProposal() public {
+        _targets.push(address(nusaQuest));
+        _values.push(0);
+        _calldatas.push(
+            abi.encodeWithSignature("claimProposerReward(address)", BOB)
+        );
+
+        vm.startPrank(BOB);
+        nusaQuest.initiate(_targets, _values, _calldatas, _description);
+        nusaQuest.cancel(
+            _targets,
+            _values,
+            _calldatas,
+            keccak256(bytes(_description))
+        );
+        vm.stopPrank();
+    }
+
+    function testRevertIfCancelProposalThatAlreadyActive() public {
+        _targets.push(address(nusaQuest));
+        _values.push(0);
+        _calldatas.push(
+            abi.encodeWithSignature("claimProposerReward(address)", BOB)
+        );
+
+        vm.startPrank(BOB);
+        nusaQuest.initiate(_targets, _values, _calldatas, _description);
+        vm.stopPrank();
+
+        vm.roll(block.number + nusaQuest.votingDelay() + 1);
+        vm.expectRevert();
+
+        vm.startPrank(BOB);
+        nusaQuest.cancel(
+            _targets,
+            _values,
+            _calldatas,
+            keccak256(bytes(_description))
+        );
+        vm.stopPrank();
+    }
+
     function testRevertIfProposalAlreadyExist() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
@@ -101,7 +143,7 @@ contract NusaQuestTest is Test {
         nusaQuest.initiate(_targets, _values, _calldatas, _description);
         vm.stopPrank();
 
-        vm.warp(5 minutes);
+        vm.roll(block.number + nusaQuest.votingDelay() + 1);
         vm.expectRevert();
 
         vm.startPrank(BOB);
@@ -305,7 +347,7 @@ contract NusaQuestTest is Test {
         assertEq(expectedNftBalance, actualNftBalance);
     }
 
-    function testSuccessfullyExecuteProposal() public {
+    function testSuccessfullyExecuteProposalAndDoQuest() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
         _calldatas.push(
@@ -375,7 +417,7 @@ contract NusaQuestTest is Test {
         );
     }
 
-    function testRevertIfProposalNotExecutedYet() public {
+    function testRevertIfClaimBeforeExecution() public {
         _targets.push(address(nusaQuest));
         _values.push(0);
         _calldatas.push(
@@ -420,6 +462,68 @@ contract NusaQuestTest is Test {
 
         vm.startPrank(ALICE);
         nusaQuest.claimVoterReward(proposalId);
+        vm.stopPrank();
+    }
+
+    function testRevertIfDoQuestAfterDeadline() public {
+        _targets.push(address(nusaQuest));
+        _values.push(0);
+        _calldatas.push(
+            abi.encodeWithSignature("claimProposerReward(address)", BOB)
+        );
+
+        vm.startPrank(BOB);
+        nusaQuest.initiate(_targets, _values, _calldatas, _description);
+        vm.stopPrank();
+
+        vm.startPrank(ALICE);
+        nusaToken.delegate();
+        vm.stopPrank();
+
+        vm.roll(block.number + 1);
+
+        uint256 proposalId = nusaQuest.proposalIds()[0];
+        uint256 voteStart = nusaQuest.proposalSnapshot(proposalId);
+        uint8 support = 1;
+        string memory reason = "Nice quest.";
+
+        vm.roll(voteStart + 1);
+
+        vm.startPrank(ALICE);
+        nusaQuest.vote(proposalId, support, reason);
+        vm.stopPrank();
+
+        vm.roll(block.number + nusaQuest.votingPeriod());
+        nusaQuest.queue(
+            _targets,
+            _values,
+            _calldatas,
+            keccak256(bytes(_description))
+        );
+
+        vm.warp(block.timestamp + nusaQuest.executionDelay());
+        nusaQuest.execute(
+            _targets,
+            _values,
+            _calldatas,
+            keccak256(bytes(_description))
+        );
+
+        vm.startPrank(ALICE);
+        nusaQuest.claimVoterReward(proposalId);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 8 days);
+        vm.startPrank(CHARLIE);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Errors.QuestExpired.selector,
+                proposalId,
+                (nusaQuest.proposalEta(proposalId) + 7 days),
+                block.timestamp
+            )
+        );
+        nusaQuest.claimParticipantReward(proposalId, "NusaQuest");
         vm.stopPrank();
     }
 

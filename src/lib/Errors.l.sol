@@ -19,6 +19,16 @@ library Errors {
     /// @param actual Whether the proposal currently exists.
     error InvalidProposalExistence(uint256 proposalId, bool actual);
 
+    /// @notice Reverts when the quest is attempted after the 7-day execution window has passed.
+    /// @param proposalId The ID of the quest/proposal.
+    /// @param expiredAt The timestamp when the quest expired.
+    /// @param currentTime The current block timestamp at execution attempt.
+    error QuestExpired(
+        uint256 proposalId,
+        uint256 expiredAt,
+        uint256 currentTime
+    );
+
     /// @notice Thrown when a user is expected to have or not have submitted proof of their action.
     /// @param proposalId The ID of the related proposal.
     /// @param user The address of the user.

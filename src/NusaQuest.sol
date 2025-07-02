@@ -49,6 +49,7 @@ contract NusaQuest is
     uint256 private constant PARTICIPANT_REWARD = 60;
     uint256 private constant DAILY_REWARD = 2;
     uint256 private constant ACTION_COOLDOWN_PERIOD = 1 minutes;
+    uint256 private constant QUEST_DEADLINE = 7 days;
 
     NusaReward private i_nusaReward;
     NusaToken private i_nusaToken;
@@ -89,6 +90,11 @@ contract NusaQuest is
 
     modifier validateState(uint256 _proposalId, ProposalState _expected) {
         _checkState(_proposalId, _expected);
+        _;
+    }
+
+    modifier validateQuestDeadline(uint256 _proposalId) {
+        _checkQuestDeadline(_proposalId);
         _;
     }
 
@@ -186,6 +192,7 @@ contract NusaQuest is
         validateProposalExistence(_proposalId, true)
         validateProofExistence(_proposalId, msg.sender, false)
         validateState(_proposalId, ProposalState.Executed)
+        validateQuestDeadline(_proposalId)
     {
         s_proof[_proposalId][msg.sender] = _proof;
         i_nusaToken.mint(msg.sender, PARTICIPANT_REWARD);
@@ -346,6 +353,17 @@ contract NusaQuest is
 
     function _checkMintAccess(address _user) private view {
         require(s_canMint[_user], Errors.MintAccessDenied(_user));
+    }
+
+    function _checkQuestDeadline(uint256 _proposalId) private view {
+        require(
+            block.timestamp <= (proposalEta(_proposalId) + QUEST_DEADLINE),
+            Errors.QuestExpired(
+                _proposalId,
+                (proposalEta(_proposalId) + QUEST_DEADLINE),
+                block.timestamp
+            )
+        );
     }
 
     function proposalThreshold()

@@ -11,10 +11,6 @@ library Events {
     /// @param proposalId The ID of the newly created proposal.
     event Proposed(uint256 proposalId);
 
-    /// @notice Emitted when a proposal is canceled.
-    /// @param proposalId The ID of the canceled proposal.
-    event Canceled(uint256 proposalId);
-
     /// @notice Emitted when a vote is cast on a proposal.
     /// @param proposalId The ID of the proposal being voted on.
     /// @param support The support type: 0 = Against, 1 = For, 2 = Abstain.
