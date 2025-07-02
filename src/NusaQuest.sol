@@ -11,8 +11,8 @@ import {NusaReward} from "./NusaReward.sol";
 import {NusaToken} from "./NusaToken.sol";
 import {NusaTimelock} from "./NusaTimelock.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {console} from "forge-std/console.sol";
 import {Errors} from "./lib/Errors.l.sol";
+import {Events} from "./lib/Events.l.sol";
 
 contract NusaQuest is
     Governor,
@@ -44,9 +44,9 @@ contract NusaQuest is
 
     uint256[] private s_proposalIds;
 
-    uint256 private constant PROPOSER_REWARD = 30;
-    uint256 private constant VOTER_REWARD = 20;
-    uint256 private constant PARTICIPANT_REWARD = 80;
+    uint256 private constant PROPOSER_REWARD = 25;
+    uint256 private constant VOTER_REWARD = 15;
+    uint256 private constant PARTICIPANT_REWARD = 60;
     uint256 private constant DAILY_REWARD = 2;
     uint256 private constant ACTION_COOLDOWN_PERIOD = 1 minutes;
 
@@ -129,6 +129,8 @@ contract NusaQuest is
         s_lastProposeTimestamp[msg.sender] = block.timestamp;
         s_userRole[proposalId][msg.sender] = Role.PROPOSER;
         s_proposalIds.push(proposalId);
+
+        emit Events.Proposed(proposalId);
     }
 
     function vote(
@@ -144,16 +146,24 @@ contract NusaQuest is
     {
         s_userRole[_proposalId][msg.sender] = Role.VOTER;
         s_lastVoteTimestamp[msg.sender] = block.timestamp;
+
+        emit Events.Voted(_proposalId, _support, msg.sender);
+
         return castVoteWithReason(_proposalId, _support, _reason);
     }
 
-    function swap(uint256 _amount, uint256 _nftId) external nonReentrant {
-        i_nusaToken.burn(msg.sender, _amount);
+    function swap(uint256 _nftId) external nonReentrant {
+        uint256 amount = i_nusaReward.nftPrice(_nftId);
+        i_nusaToken.burn(msg.sender, amount);
         i_nusaReward.transfer(_nftId, msg.sender);
+
+        emit Events.Swapped(msg.sender, _nftId);
     }
 
     function claimProposerReward(address _user) external onlyGovernance {
         i_nusaToken.mint(_user, PROPOSER_REWARD);
+
+        emit Events.Claimed(_user, PROPOSER_REWARD);
     }
 
     function claimVoterReward(
@@ -164,6 +174,8 @@ contract NusaQuest is
         validateState(_proposalId, ProposalState.Executed)
     {
         i_nusaToken.mint(msg.sender, VOTER_REWARD);
+
+        emit Events.Claimed(msg.sender, VOTER_REWARD);
     }
 
     function claimParticipantReward(
@@ -177,6 +189,8 @@ contract NusaQuest is
     {
         s_proof[_proposalId][msg.sender] = _proof;
         i_nusaToken.mint(msg.sender, PARTICIPANT_REWARD);
+
+        emit Events.Claimed(msg.sender, PARTICIPANT_REWARD);
     }
 
     function mint(
@@ -186,6 +200,8 @@ contract NusaQuest is
         string[] memory _uris
     ) external validateMintAccess(msg.sender) {
         i_nusaReward.mint(_ids, _values, _prices, _uris);
+
+        emit Events.Minted(_ids);
     }
 
     function uri(uint256 _id) external view returns (string memory) {
@@ -272,7 +288,11 @@ contract NusaQuest is
     ) private view {
         require(
             s_userRole[_proposalId][_user] == _expected,
-            Errors.UnauthorizedRole(_user, _proposalId, uint8(_expected))
+            Errors.UnauthorizedRole(
+                _user,
+                _proposalId,
+                uint8(s_userRole[_proposalId][_user])
+            )
         );
     }
 
@@ -282,7 +302,7 @@ contract NusaQuest is
     ) private view {
         require(
             s_proposalExist[_proposalId] == _expected,
-            Errors.InvalidProposalExistence(_proposalId, _expected)
+            Errors.InvalidProposalExistence(_proposalId, !_expected)
         );
     }
 
@@ -295,7 +315,7 @@ contract NusaQuest is
             _expected
                 ? bytes(s_proof[_proposalId][_user]).length > 0
                 : bytes(s_proof[_proposalId][_user]).length == 0,
-            Errors.InvalidProofExistence(_proposalId, _user, _expected)
+            Errors.InvalidProofExistence(_proposalId, _user, !_expected)
         );
     }
 
@@ -305,7 +325,7 @@ contract NusaQuest is
     ) private view {
         require(
             state(_proposalId) == _state,
-            Errors.InvalidProposalState(_proposalId)
+            Errors.InvalidProposalState(_proposalId, uint8(state(_proposalId)))
         );
     }
 

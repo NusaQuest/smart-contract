@@ -6,6 +6,7 @@ import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {ERC1155URIStorage} from "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155URIStorage.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Errors} from "./lib/Errors.l.sol";
 
 /**
  * @title NusaReward
@@ -34,7 +35,12 @@ contract NusaReward is ERC1155URIStorage, ERC1155Holder, Ownable {
             _idsLength == _valuesLength &&
                 _valuesLength == _pricesLength &&
                 _pricesLength == _urisLength,
-            "Mismatch between IDs, values, prices, and URIs. Please ensure all inputs have the same length."
+            Errors.InvalidInputLength(
+                _idsLength,
+                _valuesLength,
+                _pricesLength,
+                _urisLength
+            )
         );
         _;
     }

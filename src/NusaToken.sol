@@ -6,7 +6,8 @@ import {ERC20Votes} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Vo
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {console} from "forge-std/console.sol";
+import {Errors} from "./lib/Errors.l.sol";
+import {Events} from "./lib/Events.l.sol";
 
 /**
  * @title NusaToken
@@ -29,7 +30,10 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * @dev Restricts a function to be callable only once — used to set the governance contract.
      */
     modifier onlyOnce() {
-        require(s_nusaQuest == address(0), "Governance already set.");
+        require(
+            s_nusaQuest == address(0),
+            Errors.GovernanceAlreadySet(s_nusaQuest)
+        );
         _;
     }
 
@@ -38,7 +42,10 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * Used to ensure that delegation and reward minting only happen on the first delegation.
      */
     modifier onlyNewDelegator() {
-        require(!s_alreadyDelegate[msg.sender], "Already delegated before.");
+        require(
+            !s_alreadyDelegate[msg.sender],
+            Errors.AlreadyDelegated(msg.sender)
+        );
         _;
     }
 
@@ -46,10 +53,7 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * @dev Restricts access to functions to the NusaQuest contract only.
      */
     modifier onlyNusaQuest() {
-        require(
-            msg.sender == s_nusaQuest,
-            "You are not authorized to perform this action."
-        );
+        require(msg.sender == s_nusaQuest, Errors.NotNusaQuest(msg.sender));
         _;
     }
 
@@ -121,6 +125,8 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
         super.delegate(msg.sender);
         s_alreadyDelegate[msg.sender] = true;
         _mint(msg.sender, NEW_USER_REWARD);
+
+        emit Events.Delegated(msg.sender);
     }
 
     /**

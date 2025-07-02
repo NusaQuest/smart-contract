@@ -2,6 +2,8 @@
 pragma solidity ^0.8.28;
 
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {Errors} from "./lib/Errors.l.sol";
+import {Events} from "./lib/Events.l.sol";
 
 /**
  * @title NusaTimelock
@@ -19,7 +21,7 @@ contract NusaTimelock is TimelockController {
      * Used to prevent re-granting of roles after initial setup.
      */
     modifier onlyOnce() {
-        require(!_isInit, "NusaTimelock: roles already granted.");
+        require(!_isInit, Errors.AlreadyGranted());
         _;
     }
 
@@ -47,5 +49,7 @@ contract NusaTimelock is TimelockController {
         _grantRole(CANCELLER_ROLE, _nusaQuest);
         _grantRole(EXECUTOR_ROLE, _nusaQuest);
         _isInit = true;
+
+        emit Events.Granted(_nusaQuest, _nusaQuest, _nusaQuest);
     }
 }
