@@ -397,7 +397,7 @@ contract NusaQuestTest is Test {
      * @notice Successfully completes the full proposal lifecycle and distributes rewards.
      * - BOB creates a proposal to claim his reward.
      * - ALICE delegates, votes in favor, and the proposal gets queued and executed.
-     * - ALICE claims voter reward, CHARLIE claims participant reward.
+     * - CHARLIE claims participant reward.
      * - Verifies all final FT balances and CHARLIE's proof.
      */
     function testSuccessfullyExecuteProposalAndDoQuest() public {
@@ -467,7 +467,6 @@ contract NusaQuestTest is Test {
      * @notice Reverts when a participant tries to do a quest after the deadline has passed.
      * - BOB creates and ALICE votes on a proposal.
      * - Proposal is executed successfully.
-     * - ALICE claims voter reward.
      * - CHARLIE tries to claim participant reward 8 days after execution.
      * - Should revert with QuestExpired error (deadline is 7 days after execution).
      */
