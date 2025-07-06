@@ -33,14 +33,6 @@ contract NusaQuest is
     GovernorTimelockControl,
     ReentrancyGuard
 {
-    /// @notice Roles a user can have during a quest (proposal lifecycle)
-    enum Role {
-        UNREGISTERED,
-        VOTER,
-        PROPOSER,
-        PARTICIPANT
-    }
-
     /// @notice Enum for different cooldown-controlled actions
     enum Action {
         PROPOSE,
@@ -49,9 +41,6 @@ contract NusaQuest is
 
     /// @notice Proof of action per proposal per user
     mapping(uint256 => mapping(address => string)) private s_proof;
-
-    /// @notice Tracks role per proposal per user
-    mapping(uint256 => mapping(address => Role)) private s_userRole;
 
     /// @notice Flags if a proposal exists
     mapping(uint256 => bool) private s_proposalExist;
@@ -69,13 +58,10 @@ contract NusaQuest is
     uint256[] private s_proposalIds;
 
     /// @notice Fixed reward amount in $NUSA tokens for the proposer of a successful quest
-    uint256 private constant PROPOSER_REWARD = 25;
-
-    /// @notice Fixed reward amount in $NUSA tokens for the voter of a successful quest
-    uint256 private constant VOTER_REWARD = 15;
+    uint256 private constant PROPOSER_REWARD = 30;
 
     /// @notice Fixed reward amount in $NUSA tokens for the participant of a successful quest
-    uint256 private constant PARTICIPANT_REWARD = 60;
+    uint256 private constant PARTICIPANT_REWARD = 70;
 
     /// @notice Cooldown between actions
     uint256 private constant ACTION_COOLDOWN_PERIOD = 1 minutes;
@@ -91,16 +77,6 @@ contract NusaQuest is
 
     /// @notice Timelock controller for proposal execution
     NusaTimelock private i_nusaTimelock;
-
-    /// @dev Validates user has the expected role in a specific proposal
-    modifier validateRole(
-        address _user,
-        uint256 _proposalId,
-        Role _expected
-    ) {
-        _checkRole(_user, _proposalId, _expected);
-        _;
-    }
 
     /// @dev Validates proposal existence matches expectation (should exist or not)
     modifier validateProposalExistence(uint256 _proposalId, bool _expected) {
@@ -192,7 +168,6 @@ contract NusaQuest is
 
         s_proposalExist[proposalId] = true;
         s_lastProposeTimestamp[msg.sender] = block.timestamp;
-        s_userRole[proposalId][msg.sender] = Role.PROPOSER;
         s_proposalIds.push(proposalId);
 
         emit Events.Proposed(proposalId);
@@ -213,10 +188,8 @@ contract NusaQuest is
         external
         validateProposalExistence(_proposalId, true)
         validateLastActionTimestamp(msg.sender, Action.VOTE)
-        validateRole(msg.sender, _proposalId, Role.UNREGISTERED)
         returns (uint256)
     {
-        s_userRole[_proposalId][msg.sender] = Role.VOTER;
         s_lastVoteTimestamp[msg.sender] = block.timestamp;
 
         emit Events.Voted(_proposalId, _support, msg.sender);
@@ -244,22 +217,6 @@ contract NusaQuest is
         i_nusaToken.mint(_user, PROPOSER_REWARD);
 
         emit Events.Claimed(_user, PROPOSER_REWARD);
-    }
-
-    /// @notice Claims reward for users who voted on a successfully executed proposal.
-    /// @param _proposalId ID of the executed proposal.
-    /// @dev Only voters of the proposal can call this after execution.
-    /// @dev Emits a {Claimed} event.
-    function claimVoterReward(
-        uint256 _proposalId
-    )
-        external
-        validateRole(msg.sender, _proposalId, Role.VOTER)
-        validateState(_proposalId, ProposalState.Executed)
-    {
-        i_nusaToken.mint(msg.sender, VOTER_REWARD);
-
-        emit Events.Claimed(msg.sender, VOTER_REWARD);
     }
 
     /// @notice Claims reward for users who participated in the quest and submitted proof.
@@ -379,17 +336,6 @@ contract NusaQuest is
         return s_proof[_proposalId][_user];
     }
 
-    /// @notice Returns the role of a user in a given proposal.
-    /// @param _proposalId ID of the proposal.
-    /// @param _user Address of the user.
-    /// @return Role as uint8 (0 = Unregistered, 1 = Voter, 2 = Proposer, 3 = Participant).
-    function userRole(
-        uint256 _proposalId,
-        address _user
-    ) external view returns (uint8) {
-        return uint8(s_userRole[_proposalId][_user]);
-    }
-
     /// @notice Returns an array of all proposal IDs created in the system.
     /// @return Array of proposal IDs.
     function proposalIds() external view returns (uint256[] memory) {
@@ -417,26 +363,6 @@ contract NusaQuest is
     /// @return UNIX timestamp of the last vote action.
     function lastVoteTimestamp(address _user) external view returns (uint256) {
         return s_lastVoteTimestamp[_user];
-    }
-
-    /// @dev Internal function to validate a user's role in a specific proposal.
-    /// @dev Reverts with `Errors.UnauthorizedRole` if the user's role does not match the expected role.
-    /// @param _user Address of the user to check.
-    /// @param _proposalId ID of the proposal.
-    /// @param _expected Expected role of the user.
-    function _checkRole(
-        address _user,
-        uint256 _proposalId,
-        Role _expected
-    ) private view {
-        require(
-            s_userRole[_proposalId][_user] == _expected,
-            Errors.UnauthorizedRole(
-                _user,
-                _proposalId,
-                uint8(s_userRole[_proposalId][_user])
-            )
-        );
     }
 
     /// @dev Checks whether a proposal exists or not based on expectation.

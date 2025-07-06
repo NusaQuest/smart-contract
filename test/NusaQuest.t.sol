@@ -109,11 +109,8 @@ contract NusaQuestTest is Test {
 
         uint256 expectedProposals = 1;
         uint256 actualProposals = nusaQuest.proposalIds().length;
-        uint8 expectedRole = 2;
-        uint8 actualRole = nusaQuest.userRole(proposalId, BOB);
 
         assertEq(expectedProposals, actualProposals);
-        assertEq(expectedRole, actualRole);
     }
 
     /**
@@ -301,46 +298,6 @@ contract NusaQuestTest is Test {
     }
 
     /**
-     * @notice Reverts when the proposer attempts to vote on their own proposal.
-     * - BOB delegates tokens and initiates a proposal.
-     * - Attempts to vote on the same proposal after it becomes active.
-     * - Should revert with UnauthorizedRole error (proposer cannot vote).
-     */
-    function testRevertIfProposerVotesOnTheirOwnProposal() public {
-        _targets.push(address(nusaQuest));
-        _values.push(0);
-        _calldatas.push(
-            abi.encodeWithSignature("claimProposerReward(address)", BOB)
-        );
-
-        vm.startPrank(BOB);
-        nusaToken.delegate();
-
-        vm.roll(block.number + 1);
-
-        nusaQuest.initiate(_targets, _values, _calldatas, _description);
-
-        uint256 proposalId = nusaQuest.proposalIds()[0];
-        uint256 voteStart = nusaQuest.proposalSnapshot(proposalId);
-        uint8 support = 1;
-        string memory reason = "Nice quest.";
-
-        vm.roll(voteStart + 1);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Errors.UnauthorizedRole.selector,
-                BOB,
-                proposalId,
-                2
-            )
-        );
-        nusaQuest.vote(proposalId, support, reason);
-
-        vm.stopPrank();
-    }
-
-    /**
      * @notice Successfully mints an NFT with correct values and metadata.
      * - Sets NFT ID, value, price, and URI.
      * - Verifies that the stored URI and price match expectations.
@@ -487,83 +444,23 @@ contract NusaQuestTest is Test {
             keccak256(bytes(_description))
         );
 
-        vm.startPrank(ALICE);
-        nusaQuest.claimVoterReward(proposalId);
-        vm.stopPrank();
-
         vm.startPrank(CHARLIE);
         nusaQuest.claimParticipantReward(proposalId, "NusaQuest");
         vm.stopPrank();
 
-        uint256 expectedBobFtBalance = 25;
+        uint256 expectedBobFtBalance = 30;
         uint256 actualBobFtBalance = nusaQuest.ftBalance(BOB);
-        uint256 expectedAliceFtBalance = 25;
-        uint256 actualAliceFtBalance = nusaQuest.ftBalance(ALICE);
-        uint256 expectedCharlieFtBalance = 60;
+        uint256 expectedCharlieFtBalance = 70;
         uint256 actualCharlieFtBalance = nusaQuest.ftBalance(CHARLIE);
         string memory expectedProof = "NusaQuest";
         string memory actualProof = nusaQuest.proof(proposalId, CHARLIE);
 
         assertEq(expectedBobFtBalance, actualBobFtBalance);
-        assertEq(expectedAliceFtBalance, actualAliceFtBalance);
         assertEq(expectedCharlieFtBalance, actualCharlieFtBalance);
         assert(
             keccak256(abi.encodePacked(expectedProof)) ==
                 keccak256(abi.encodePacked(actualProof))
         );
-    }
-
-    /**
-     * @notice Reverts when a user attempts to claim reward before the proposal is executed.
-     * - ALICE votes on a queued proposal but tries to claim reward before execution.
-     * - Should revert with InvalidProposalState error (proposal not yet executed).
-     */
-    function testRevertIfClaimBeforeExecution() public {
-        _targets.push(address(nusaQuest));
-        _values.push(0);
-        _calldatas.push(
-            abi.encodeWithSignature("claimProposerReward(address)", BOB)
-        );
-
-        vm.startPrank(BOB);
-        nusaQuest.initiate(_targets, _values, _calldatas, _description);
-        vm.stopPrank();
-
-        vm.startPrank(ALICE);
-        nusaToken.delegate();
-        vm.stopPrank();
-
-        vm.roll(block.number + 1);
-
-        uint256 proposalId = nusaQuest.proposalIds()[0];
-        uint256 voteStart = nusaQuest.proposalSnapshot(proposalId);
-        uint8 support = 1;
-        string memory reason = "Nice quest.";
-
-        vm.roll(voteStart + 1);
-
-        vm.startPrank(ALICE);
-        nusaQuest.vote(proposalId, support, reason);
-        vm.stopPrank();
-
-        vm.roll(block.number + nusaQuest.votingPeriod());
-        nusaQuest.queue(
-            _targets,
-            _values,
-            _calldatas,
-            keccak256(bytes(_description))
-        );
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Errors.InvalidProposalState.selector,
-                proposalId,
-                5
-            )
-        );
-
-        vm.startPrank(ALICE);
-        nusaQuest.claimVoterReward(proposalId);
-        vm.stopPrank();
     }
 
     /**
@@ -617,10 +514,6 @@ contract NusaQuestTest is Test {
             _calldatas,
             keccak256(bytes(_description))
         );
-
-        vm.startPrank(ALICE);
-        nusaQuest.claimVoterReward(proposalId);
-        vm.stopPrank();
 
         vm.warp(block.timestamp + 8 days);
         vm.startPrank(CHARLIE);

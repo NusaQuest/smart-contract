@@ -8,12 +8,6 @@ library Errors {
     //        NusaQuest
     // ========================
 
-    /// @notice Thrown when a user with invalid role attempts to take an action on a proposal.
-    /// @param user The address of the user attempting the action.
-    /// @param proposalId The ID of the proposal being interacted with.
-    /// @param actual The actual role/status of the user.
-    error UnauthorizedRole(address user, uint256 proposalId, uint8 actual);
-
     /// @notice Thrown when a proposal is expected to exist or not, but doesn't match.
     /// @param proposalId The ID of the proposal being checked.
     /// @param actual Whether the proposal currently exists.
