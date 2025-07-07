@@ -16,9 +16,8 @@ import {Events} from "./lib/Events.l.sol";
 
 /**
  * @title NusaQuest
- * @dev Governance contract extending OpenZeppelin Governor modules with additional role-based participation and reward mechanics.
+ * @dev Governance contract extending OpenZeppelin Governor modules with additional reward mechanics.
  * Features include:
- * - Role-based access control for proposal participation.
  * - Cooldown enforcement between propose and vote actions.
  * - Custom reward system for proposers, voters, and participants.
  * - Proof-based claim mechanism.
@@ -50,6 +49,15 @@ contract NusaQuest is
 
     /// @notice Last vote timestamp per user
     mapping(address => uint256) private s_lastVoteTimestamp;
+
+    /// @notice Tracks the total number of votes cast by a user
+    mapping(address => uint256) private s_totalVotes;
+
+    /// @notice Tracks the total number of proposals created by a user
+    mapping(address => uint256) private s_totalProposals;
+
+    /// @notice Tracks the total number of quests executed by a user
+    mapping(address => uint256) private s_totalQuestsExecuted;
 
     /// @notice Whether an address has minting permission
     mapping(address => bool) private s_canMint;
@@ -146,13 +154,16 @@ contract NusaQuest is
         s_canMint[msg.sender] = true;
     }
 
-    /// @notice Initiates a new quest proposal.
-    /// @param _targets Addresses of contracts to be called by the proposal.
-    /// @param _values ETH values to send with each call.
-    /// @param _calldatas Encoded function calls to be executed if the proposal passes.
-    /// @param _description Human-readable description of the proposal.
-    /// @dev Sets proposer role, tracks timestamp, and stores proposal metadata.
-    /// @dev Emits a {Proposed} event.
+    /// @notice Creates a new on-chain quest proposal.
+    /// @param _targets The contract addresses to be called if the proposal is executed.
+    /// @param _values The amount of ETH to send with each contract call.
+    /// @param _calldatas The function call data to be executed for each target.
+    /// @param _description A human-readable description of the proposal.
+    /// @dev This function wraps the {propose} function, marks the proposal as existing,
+    ///      stores the last propose timestamp for the caller, pushes the ID to the proposals list,
+    ///      and increments the total number of proposals made by the caller.
+    /// @dev Also ensures cooldown between proposals via {validateLastActionTimestamp}.
+    /// @dev Emits a {Proposed} event containing the new proposal ID.
     function initiate(
         address[] memory _targets,
         uint256[] memory _values,
@@ -169,17 +180,19 @@ contract NusaQuest is
         s_proposalExist[proposalId] = true;
         s_lastProposeTimestamp[msg.sender] = block.timestamp;
         s_proposalIds.push(proposalId);
+        s_totalProposals[msg.sender] += 1;
 
         emit Events.Proposed(proposalId);
     }
 
-    /// @notice Casts a vote on an active proposal with a reason.
-    /// @param _proposalId ID of the proposal to vote on.
-    /// @param _support Vote type: 0 = Against, 1 = For, 2 = Abstain.
-    /// @param _reason Reason for the vote (used for off-chain transparency).
-    /// @return voteWeight Amount of voting power used.
-    /// @dev Voter must not be the proposer. Sets voter role and tracks timestamp.
-    /// @dev Emits a {Voted} event.
+    /// @notice Casts a vote on an existing active proposal and provides a reason.
+    /// @param _proposalId The ID of the proposal to vote on.
+    /// @param _support The type of vote: 0 = Against, 1 = For, 2 = Abstain.
+    /// @param _reason An optional reason for the vote, stored off-chain for transparency.
+    /// @return voteWeight The amount of voting power used in this vote.
+    /// @dev Enforces cooldown between votes via {validateLastActionTimestamp}.
+    /// @dev Updates the voter's last vote timestamp and increments their total vote count.
+    /// @dev Emits a {Voted} event with proposal ID, support type, and voter's address.
     function vote(
         uint256 _proposalId,
         uint8 _support,
@@ -191,6 +204,7 @@ contract NusaQuest is
         returns (uint256)
     {
         s_lastVoteTimestamp[msg.sender] = block.timestamp;
+        s_totalVotes[msg.sender] += 1;
 
         emit Events.Voted(_proposalId, _support, msg.sender);
 
@@ -236,6 +250,7 @@ contract NusaQuest is
     {
         s_proof[_proposalId][msg.sender] = _proof;
         i_nusaToken.mint(msg.sender, PARTICIPANT_REWARD);
+        s_totalQuestsExecuted[msg.sender] += 1;
 
         emit Events.Claimed(msg.sender, PARTICIPANT_REWARD);
     }
@@ -334,6 +349,22 @@ contract NusaQuest is
         address _user
     ) external view returns (string memory) {
         return s_proof[_proposalId][_user];
+    }
+
+    /// @notice Returns the contribution statistics of a given user.
+    /// @param _user The wallet address of the user.
+    /// @return proposalCount Total number of proposals created by the user.
+    /// @return voteCount Total number of proposals the user has voted on.
+    /// @return questExecutedCount Total number of quests executed by the user.
+    /// @dev Useful for calculating user engagement or displaying reputation metrics.
+    function contribution(
+        address _user
+    ) external view returns (uint256, uint256, uint256) {
+        return (
+            s_totalProposals[_user],
+            s_totalVotes[_user],
+            s_totalQuestsExecuted[_user]
+        );
     }
 
     /// @notice Returns an array of all proposal IDs created in the system.

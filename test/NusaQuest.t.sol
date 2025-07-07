@@ -92,7 +92,6 @@ contract NusaQuestTest is Test {
      * @notice Tests that a user can successfully initiate a new proposal.
      * - Proposal calls `claimProposerReward(address)`
      * - Confirms that the proposal is stored
-     * - Checks that BOB is assigned the correct role (Proposer = 2)
      */
     function testSuccessfullyInitiateProposal() public {
         _targets.push(address(nusaQuest));
@@ -104,8 +103,6 @@ contract NusaQuestTest is Test {
         vm.startPrank(BOB);
         nusaQuest.initiate(_targets, _values, _calldatas, _description);
         vm.stopPrank();
-
-        uint256 proposalId = nusaQuest.proposalIds()[0];
 
         uint256 expectedProposals = 1;
         uint256 actualProposals = nusaQuest.proposalIds().length;
@@ -454,12 +451,20 @@ contract NusaQuestTest is Test {
         uint256 actualCharlieFtBalance = nusaQuest.ftBalance(CHARLIE);
         string memory expectedProof = "NusaQuest";
         string memory actualProof = nusaQuest.proof(proposalId, CHARLIE);
+        uint256 expectedCharlieQuestsExecutedTotal = 1;
+        (, , uint256 actualCharlieQuestsExecutedTotal) = nusaQuest.contribution(
+            CHARLIE
+        );
 
         assertEq(expectedBobFtBalance, actualBobFtBalance);
         assertEq(expectedCharlieFtBalance, actualCharlieFtBalance);
         assert(
             keccak256(abi.encodePacked(expectedProof)) ==
                 keccak256(abi.encodePacked(actualProof))
+        );
+        assertEq(
+            expectedCharlieQuestsExecutedTotal,
+            actualCharlieQuestsExecutedTotal
         );
     }
 
