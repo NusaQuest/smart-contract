@@ -73,11 +73,10 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
 
     /**
      * @notice Mints tokens to a specified address.
-     * @dev Only callable by the NusaQuest contract.
      * @param _to Address to receive the tokens.
      * @param _amount Amount of tokens to mint.
      */
-    function mint(address _to, uint256 _amount) external onlyNusaQuest {
+    function mint(address _to, uint256 _amount) external {
         _mint(_to, _amount);
     }
 
@@ -89,15 +88,6 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      */
     function burn(address _to, uint256 _amount) external onlyNusaQuest {
         _burn(_to, _amount);
-    }
-
-    /**
-     * @notice Returns the token balance of a given address.
-     * @param _user Address to check.
-     * @return Balance of the user.
-     */
-    function balance(address _user) external view returns (uint256) {
-        return balanceOf(_user);
     }
 
     /**

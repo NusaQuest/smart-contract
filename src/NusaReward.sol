@@ -95,26 +95,6 @@ contract NusaReward is ERC1155URIStorage, ERC1155Holder, Ownable {
     }
 
     /**
-     * @notice Returns the URI of a given token ID.
-     * @param _id Token ID to query.
-     */
-    function tokenURI(uint256 _id) external view returns (string memory) {
-        return uri(_id);
-    }
-
-    /**
-     * @notice Returns how many NFTs of a specific ID a user owns.
-     * @param _user The address to query.
-     * @param _id The NFT token ID to check.
-     */
-    function balance(
-        address _user,
-        uint256 _id
-    ) external view returns (uint256) {
-        return balanceOf(_user, _id);
-    }
-
-    /**
      * @notice Returns the configured price of a given NFT.
      * @param _id Token ID to check.
      */

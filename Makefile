@@ -15,4 +15,4 @@ format:
 	forge fmt
 
 deploy:
-	forge script script/NusaQuestScript.s.sol:NusaQuest --rpc-url ${RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --etherscan-api-key ${ETHERSCAN_API_KEY} --verify	
+	forge script script/NusaQuest.s.sol:NusaQuestScript --rpc-url ${RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --etherscan-api-key ${ETHERSCAN_API_KEY} --verify	

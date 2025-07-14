@@ -38,8 +38,28 @@ contract NusaQuest is
         VOTE
     }
 
-    /// @notice Proof of action per proposal per user
-    mapping(uint256 => mapping(address => string)) private s_proof;
+    /// @notice Structure representing a record of a user's submission for a specific proposal.
+    /// @dev Stores the proposal ID and a string-based proof (e.g., IPFS hash, link, or description).
+    struct SubmissionHistory {
+        uint256 proposalId;
+        string proof;
+    }
+
+    /// @notice Structure representing a single voting record by a user.
+    /// @dev Each vote includes the target proposal and the support type:
+    /// 0 = Against and 1 = For.
+    struct VoteHistory {
+        uint256 proposalId;
+        uint8 support;
+    }
+
+    /// @notice Mapping to track all submissions made by a user across proposals.
+    /// @dev Each address maps to an array of SubmissionHistory structs.
+    mapping(address => SubmissionHistory[]) private s_submissionHistory;
+
+    /// @notice Mapping to track all votes made by a user.
+    /// @dev Each address maps to an array of VoteHistory structs to allow vote auditing and reward eligibility checks.
+    mapping(address => VoteHistory[]) private s_voteHistory;
 
     /// @notice Flags if a proposal exists
     mapping(uint256 => bool) private s_proposalExist;
@@ -101,16 +121,6 @@ contract NusaQuest is
     /// @dev Validates if user has permission to mint NFT (admin-only in most cases)
     modifier validateMintAccess(address _user) {
         _checkMintAccess(_user);
-        _;
-    }
-
-    /// @dev Validates presence/absence of proof data
-    modifier validateProofExistence(
-        uint256 _proposalId,
-        address _user,
-        bool _expected
-    ) {
-        _checkProofExistence(_proposalId, _user, _expected);
         _;
     }
 
@@ -185,14 +195,18 @@ contract NusaQuest is
         emit Events.Proposed(proposalId);
     }
 
-    /// @notice Casts a vote on an existing active proposal and provides a reason.
-    /// @param _proposalId The ID of the proposal to vote on.
-    /// @param _support The type of vote: 0 = Against, 1 = For, 2 = Abstain.
-    /// @param _reason An optional reason for the vote, stored off-chain for transparency.
-    /// @return voteWeight The amount of voting power used in this vote.
-    /// @dev Enforces cooldown between votes via {validateLastActionTimestamp}.
-    /// @dev Updates the voter's last vote timestamp and increments their total vote count.
-    /// @dev Emits a {Voted} event with proposal ID, support type, and voter's address.
+    /// @notice Cast a vote on an active proposal with an optional reason.
+    /// @param _proposalId The ID of the active proposal to vote on.
+    /// @param _support Type of vote: 0 = Against and 1 = For.
+    /// @param _reason Optional reason for voting, stored off-chain for transparency.
+    /// @return voteWeight The amount of voting power used for this vote.
+    /// @dev Requirements:
+    /// - The proposal must exist and be active (validated by {validateProposalExistence}).
+    /// - The voter must not be in cooldown (enforced by {validateLastActionTimestamp}).
+    /// @dev Effects:
+    /// - Records the voter's support choice in their vote history.
+    /// - Updates the last vote timestamp and increments the user's total vote count.
+    /// @dev Emits a {Voted} event with the proposal ID, vote type, and voter's address.
     function vote(
         uint256 _proposalId,
         uint8 _support,
@@ -203,6 +217,7 @@ contract NusaQuest is
         validateLastActionTimestamp(msg.sender, Action.VOTE)
         returns (uint256)
     {
+        s_voteHistory[msg.sender].push(VoteHistory(_proposalId, _support));
         s_lastVoteTimestamp[msg.sender] = block.timestamp;
         s_totalVotes[msg.sender] += 1;
 
@@ -233,22 +248,30 @@ contract NusaQuest is
         emit Events.Claimed(_user, PROPOSER_REWARD);
     }
 
-    /// @notice Claims reward for users who participated in the quest and submitted proof.
-    /// @param _proposalId ID of the related proposal.
-    /// @param _proof Textual proof (e.g. description or link) of the participant's action.
-    /// @dev Only allowed if proof hasn't been submitted and quest is still within deadline.
-    /// @dev Emits a {Claimed} event.
+    /// @notice Claim reward for participating in a quest by submitting a hashed proof.
+    /// @param _proposalId The ID of the executed proposal (quest) to claim rewards from.
+    /// @param _proof A hashed string (e.g., IPFS CID or SHA-256) of the participant's video submission as proof of quest completion.
+    /// @dev Requirements:
+    /// - The proposal must exist and be in the `Executed` state.
+    /// - The quest must still be within the allowed claim period (see {validateQuestDeadline}).
+    /// - The sender must not have previously submitted proof for this proposal.
+    /// @dev Effects:
+    /// - Records the hashed proof in the submission history.
+    /// - Mints a fixed amount of NUSA tokens to the participant.
+    /// - Increments the sender’s completed quest count.
+    /// @dev Emits a {Claimed} event with the sender's address and reward amount.
     function claimParticipantReward(
         uint256 _proposalId,
         string memory _proof
     )
         external
         validateProposalExistence(_proposalId, true)
-        validateProofExistence(_proposalId, msg.sender, false)
         validateState(_proposalId, ProposalState.Executed)
         validateQuestDeadline(_proposalId)
     {
-        s_proof[_proposalId][msg.sender] = _proof;
+        s_submissionHistory[msg.sender].push(
+            SubmissionHistory(_proposalId, _proof)
+        );
         i_nusaToken.mint(msg.sender, PARTICIPANT_REWARD);
         s_totalQuestsExecuted[msg.sender] += 1;
 
@@ -277,7 +300,7 @@ contract NusaQuest is
     /// @param _id ID of the NFT.
     /// @return The full IPFS URI of the NFT.
     function uri(uint256 _id) external view returns (string memory) {
-        return i_nusaReward.tokenURI(_id);
+        return i_nusaReward.uri(_id);
     }
 
     /// @notice Returns the price of a specific NFT in $NUSA.
@@ -295,14 +318,14 @@ contract NusaQuest is
         address _user,
         uint256 _nftId
     ) external view returns (uint256) {
-        return i_nusaReward.balance(_user, _nftId);
+        return i_nusaReward.balanceOf(_user, _nftId);
     }
 
     /// @notice Returns the fungible token ($NUSA) balance of a user.
     /// @param _user Address of the user.
     /// @return The $NUSA token balance.
     function ftBalance(address _user) external view returns (uint256) {
-        return i_nusaToken.balance(_user);
+        return i_nusaToken.balanceOf(_user);
     }
 
     /// @notice Checks if an address is authorized to mint NFTs.
@@ -334,21 +357,22 @@ contract NusaQuest is
         return super.votingDelay();
     }
 
-    /// @notice Returns the minimum delay before a queued proposal can be executed.
-    /// @return Time in seconds for the execution delay (from Timelock).
-    function executionDelay() external view returns (uint256) {
-        return NusaTimelock(payable(timelock())).getMinDelay();
+    /// @notice Returns the full submission history of a user.
+    /// @param _user The address of the user.
+    /// @return An array of SubmissionHistory structs associated with the user.
+    function userSubmissionHistory(
+        address _user
+    ) external view returns (SubmissionHistory[] memory) {
+        return s_submissionHistory[_user];
     }
 
-    /// @notice Returns the proof submitted by a user for a specific proposal.
-    /// @param _proposalId ID of the proposal.
-    /// @param _user Address of the user.
-    /// @return Proof string submitted by the user.
-    function proof(
-        uint256 _proposalId,
+    /// @notice Returns the full voting history of a user.
+    /// @param _user The address of the user.
+    /// @return An array of VoteHistory structs representing the user's votes across proposals.
+    function userVoteHistory(
         address _user
-    ) external view returns (string memory) {
-        return s_proof[_proposalId][_user];
+    ) external view returns (VoteHistory[] memory) {
+        return s_voteHistory[_user];
     }
 
     /// @notice Returns the contribution statistics of a given user.
@@ -407,24 +431,6 @@ contract NusaQuest is
         require(
             s_proposalExist[_proposalId] == _expected,
             Errors.InvalidProposalExistence(_proposalId, !_expected)
-        );
-    }
-
-    /// @dev Checks whether a user has submitted proof for a proposal as expected.
-    /// @dev Reverts with `InvalidProofExistence` if the condition fails.
-    /// @param _proposalId ID of the proposal.
-    /// @param _user Address of the user.
-    /// @param _expected Expected existence of proof (true = should exist, false = should not exist).
-    function _checkProofExistence(
-        uint256 _proposalId,
-        address _user,
-        bool _expected
-    ) private view {
-        require(
-            _expected
-                ? bytes(s_proof[_proposalId][_user]).length > 0
-                : bytes(s_proof[_proposalId][_user]).length == 0,
-            Errors.InvalidProofExistence(_proposalId, _user, !_expected)
         );
     }
 

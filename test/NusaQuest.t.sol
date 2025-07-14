@@ -433,7 +433,7 @@ contract NusaQuestTest is Test {
             keccak256(bytes(_description))
         );
 
-        vm.warp(block.timestamp + nusaQuest.executionDelay());
+        vm.warp(block.timestamp + nusaQuest.proposalEta(proposalId));
         nusaQuest.execute(
             _targets,
             _values,
@@ -450,7 +450,8 @@ contract NusaQuestTest is Test {
         uint256 expectedCharlieFtBalance = 70;
         uint256 actualCharlieFtBalance = nusaQuest.ftBalance(CHARLIE);
         string memory expectedProof = "NusaQuest";
-        string memory actualProof = nusaQuest.proof(proposalId, CHARLIE);
+        string memory actualProof = nusaQuest
+        .userSubmissionHistory(CHARLIE)[0].proof;
         uint256 expectedCharlieQuestsExecutedTotal = 1;
         (, , uint256 actualCharlieQuestsExecutedTotal) = nusaQuest.contribution(
             CHARLIE
@@ -511,7 +512,7 @@ contract NusaQuestTest is Test {
             keccak256(bytes(_description))
         );
 
-        vm.warp(block.timestamp + nusaQuest.executionDelay());
+        vm.warp(block.timestamp + nusaQuest.proposalEta(proposalId));
         nusaQuest.execute(
             _targets,
             _values,
