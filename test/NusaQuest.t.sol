@@ -45,9 +45,9 @@ contract NusaQuestTest is Test {
      * - Grants executor permissions to NusaQuest so it can execute queued proposals through the timelock.
      */
     function setUp() public {
-        uint256 minDelay = 1 minutes;
-        uint32 votingDelay = 30; // 1 minute (approx. 30 blocks assuming 2s per block)
-        uint32 votingPeriod = 150; // 5 minutes (approx. 150 blocks)
+        uint256 minDelay = 10 minutes;
+        uint32 votingDelay = 300; // ~10 minutes
+        uint32 votingPeriod = 300; // ~10 minutes
         uint256 quorum = 1;
 
         nusaToken = new NusaToken();
@@ -81,7 +81,7 @@ contract NusaQuestTest is Test {
 
         bool expectedIsDelegate = true;
         bool actualIsDelegate = nusaToken.isAlreadyDelegate(ALICE);
-        uint256 expectedBalance = 10;
+        uint256 expectedBalance = 10 * 10 ** 18;
         uint256 actualBalance = nusaQuest.ftBalance(ALICE);
 
         assertEq(expectedIsDelegate, actualIsDelegate);
@@ -152,6 +152,7 @@ contract NusaQuestTest is Test {
         vm.stopPrank();
 
         vm.roll(block.number + nusaQuest.votingDelay() + 1);
+
         vm.expectRevert();
 
         vm.startPrank(BOB);
@@ -260,7 +261,7 @@ contract NusaQuestTest is Test {
             uint256 expectedAgainstVotes,
             uint256 expectedForVotes,
             uint256 expectedAbstainVotes
-        ) = (0, 10, 0);
+        ) = (0, 10 * 10 ** 18, 0);
         (
             uint256 actualAgainstVotes,
             uint256 actualForVotes,
@@ -371,7 +372,7 @@ contract NusaQuestTest is Test {
     function testSuccessfullySwap() public {
         _ids.push(1);
         _nftValues.push(2);
-        _prices.push(5);
+        _prices.push(5 * 10 ** 18);
         _uris.push("a");
 
         nusaQuest.mint(_ids, _nftValues, _prices, _uris);
@@ -381,7 +382,7 @@ contract NusaQuestTest is Test {
         nusaQuest.swap(1);
         vm.stopPrank();
 
-        uint256 expectedFtBalance = 5;
+        uint256 expectedFtBalance = 10 * 10 ** 18 - 5 * 10 ** 18;
         uint256 actualFtBalance = nusaQuest.ftBalance(ALICE);
         uint256 expectedNftBalance = 1;
         uint256 actualNftBalance = nusaQuest.nftBalance(ALICE, 1);
@@ -425,7 +426,7 @@ contract NusaQuestTest is Test {
         nusaQuest.vote(proposalId, support, reason);
         vm.stopPrank();
 
-        vm.roll(block.number + nusaQuest.votingPeriod());
+        vm.roll(block.number + nusaQuest.votingPeriod() + 1);
         nusaQuest.queue(
             _targets,
             _values,
@@ -445,9 +446,9 @@ contract NusaQuestTest is Test {
         nusaQuest.claimParticipantReward(proposalId, "NusaQuest");
         vm.stopPrank();
 
-        uint256 expectedBobFtBalance = 30;
+        uint256 expectedBobFtBalance = 10 * 10 ** 18;
         uint256 actualBobFtBalance = nusaQuest.ftBalance(BOB);
-        uint256 expectedCharlieFtBalance = 70;
+        uint256 expectedCharlieFtBalance = 40 * 10 ** 18;
         uint256 actualCharlieFtBalance = nusaQuest.ftBalance(CHARLIE);
         string memory expectedProof = "NusaQuest";
         string memory actualProof = nusaQuest
@@ -520,13 +521,13 @@ contract NusaQuestTest is Test {
             keccak256(bytes(_description))
         );
 
-        vm.warp(block.timestamp + 8 days);
+        vm.warp(block.timestamp + 1 days);
         vm.startPrank(CHARLIE);
         vm.expectRevert(
             abi.encodeWithSelector(
                 Errors.QuestExpired.selector,
                 proposalId,
-                (nusaQuest.proposalEta(proposalId) + 7 days),
+                (nusaQuest.proposalEta(proposalId) + 10 minutes),
                 block.timestamp
             )
         );

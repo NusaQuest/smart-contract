@@ -11,7 +11,7 @@ import {Errors} from "./lib/Errors.l.sol";
 /**
  * @title NusaReward
  * @dev ERC1155 contract used to manage reward NFTs in a governance.
- * - Tokens are minted by the owner (e.g. a NusaQuest contract).
+ * - Tokens are minted by the owner (a NusaQuest contract).
  * - Metadata is stored via per-token URI with a base IPFS gateway.
  * - Each NFT can have a specific price (e.g. for redemption).
  */

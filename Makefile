@@ -14,5 +14,8 @@ coverage:
 format:
 	forge fmt
 
-deploy:
-	forge script script/NusaQuest.s.sol:NusaQuestScript --rpc-url ${RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --etherscan-api-key ${ETHERSCAN_API_KEY} --verify	
+deploy-verify:
+	forge script script/NusaQuest.s.sol:NusaQuestScript --rpc-url ${RPC_URL} --private-key ${PRIVATE_KEY} --broadcast --verify --verifier ${VERIFIER} --verifier-url ${VERIFIER_URL}
+
+verify:
+	forge verify-contract --rpc-url ${RPC_URL} --verifier ${VERIFIER} --verifier-url ${VERIFIER_URL} ${CONTRACT_ADDRESS} ${CONTRACT_DETAIL}

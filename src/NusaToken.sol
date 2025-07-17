@@ -76,8 +76,8 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * @param _to Address to receive the tokens.
      * @param _amount Amount of tokens to mint.
      */
-    function mint(address _to, uint256 _amount) external {
-        _mint(_to, _amount);
+    function mint(address _to, uint256 _amount) public {
+        _mint(_to, (_amount * (10 ** decimals())));
     }
 
     /**
@@ -114,7 +114,7 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
     function delegate() external onlyNewDelegator {
         super.delegate(msg.sender);
         s_alreadyDelegate[msg.sender] = true;
-        _mint(msg.sender, NEW_USER_REWARD);
+        mint(msg.sender, NEW_USER_REWARD);
 
         emit Events.Delegated(msg.sender);
     }

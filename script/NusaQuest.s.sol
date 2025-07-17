@@ -27,9 +27,9 @@ contract NusaQuestScript is Script {
     /// @notice Placeholder `run` function. Can be used to manually trigger logic for scripts or testing via external call.
     function run() external {
         vm.startBroadcast();
-        uint256 minDelay = 1 minutes;
-        uint32 votingDelay = 30; // 1 minutes (60 / 2)
-        uint32 votingPeriod = 150; // 5 minutes ((60 * 5) / 2)
+        uint256 minDelay = 10 minutes;
+        uint32 votingDelay = 300; // ~10 minutes
+        uint32 votingPeriod = 300; // ~10 minutes
         uint256 quorum = 1;
 
         NusaToken nusaToken = new NusaToken();
@@ -46,7 +46,6 @@ contract NusaQuestScript is Script {
             votingPeriod,
             quorum
         );
-
         nusaTimelock.grantRole(address(nusaQuest));
         vm.stopBroadcast();
     }

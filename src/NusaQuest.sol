@@ -54,15 +54,16 @@ contract NusaQuest is
     }
 
     /// @notice Mapping to track all submissions made by a user across proposals.
-    /// @dev Each address maps to an array of SubmissionHistory structs.
     mapping(address => SubmissionHistory[]) private s_submissionHistory;
 
     /// @notice Mapping to track all votes made by a user.
-    /// @dev Each address maps to an array of VoteHistory structs to allow vote auditing and reward eligibility checks.
     mapping(address => VoteHistory[]) private s_voteHistory;
 
     /// @notice Flags if a proposal exists
     mapping(uint256 => bool) private s_proposalExist;
+
+    /// @notice Stores the timestamp when a proposal was executed.
+    mapping(uint256 => uint256) private s_executedTimestamp;
 
     /// @notice Last propose timestamp per user
     mapping(address => uint256) private s_lastProposeTimestamp;
@@ -86,16 +87,16 @@ contract NusaQuest is
     uint256[] private s_proposalIds;
 
     /// @notice Fixed reward amount in $NUSA tokens for the proposer of a successful quest
-    uint256 private constant PROPOSER_REWARD = 30;
+    uint256 private constant PROPOSER_REWARD = 10;
 
     /// @notice Fixed reward amount in $NUSA tokens for the participant of a successful quest
-    uint256 private constant PARTICIPANT_REWARD = 70;
+    uint256 private constant PARTICIPANT_REWARD = 40;
 
     /// @notice Cooldown between actions
-    uint256 private constant ACTION_COOLDOWN_PERIOD = 1 minutes;
+    uint256 private constant ACTION_COOLDOWN_PERIOD = 10 minutes;
 
     /// @notice Deadline to complete a quest after execution
-    uint256 private constant QUEST_DEADLINE = 7 days;
+    uint256 private constant QUEST_DEADLINE = 10 minutes;
 
     /// @notice Contract responsible for distributing rewards
     NusaReward private i_nusaReward;
@@ -420,6 +421,15 @@ contract NusaQuest is
         return s_lastVoteTimestamp[_user];
     }
 
+    /// @notice Returns the execution timestamp of a given proposal.
+    /// @param _proposalId The ID of the proposal.
+    /// @return The UNIX timestamp (in seconds) when the proposal was executed.
+    function executedTimestamp(
+        uint256 _proposalId
+    ) external view returns (uint256) {
+        return s_executedTimestamp[_proposalId];
+    }
+
     /// @dev Checks whether a proposal exists or not based on expectation.
     /// @dev Reverts with `InvalidProposalExistence` if the condition fails.
     /// @param _proposalId ID of the proposal to check.
@@ -561,6 +571,8 @@ contract NusaQuest is
         bytes[] memory calldatas,
         bytes32 descriptionHash
     ) internal override(Governor, GovernorTimelockControl) {
+        s_executedTimestamp[proposalId] = block.timestamp;
+
         super._executeOperations(
             proposalId,
             targets,
