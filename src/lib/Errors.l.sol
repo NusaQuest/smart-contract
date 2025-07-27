@@ -23,12 +23,6 @@ library Errors {
         uint256 currentTime
     );
 
-    /// @notice Thrown when a user is expected to have or not have submitted proof of their action.
-    /// @param proposalId The ID of the related proposal.
-    /// @param user The address of the user.
-    /// @param actual Whether the proof exists.
-    error InvalidProofExistence(uint256 proposalId, address user, bool actual);
-
     /// @notice Thrown when a proposal is in an unexpected or invalid state for the attempted action.
     /// @param proposalId The ID of the proposal.
     /// @param state The current state of the proposal.
@@ -39,25 +33,13 @@ library Errors {
     /// @param action The action type being attempted (represented as an enum uint8).
     error ActionOnCooldown(address user, uint8 action);
 
-    /// @notice Thrown when an unauthorized address attempts to mint tokens.
-    /// @param user The address attempting the mint.
-    error MintAccessDenied(address user);
+    /// @notice Reverts when a required identity is not found for the given user.
+    /// @param user The address of the user who has not yet registered an identity.
+    error IdentityNotRegistered(address user);
 
-    // ========================
-    //       NusaReward
-    // ========================
-
-    /// @notice Thrown when mint input arrays (ids, values, prices, uris) have mismatched lengths.
-    /// @param idsLength Length of the NFT IDs array.
-    /// @param valuesLength Length of the values array.
-    /// @param pricesLength Length of the prices array.
-    /// @param urisLength Length of the URIs array.
-    error InvalidInputLength(
-        uint256 idsLength,
-        uint256 valuesLength,
-        uint256 pricesLength,
-        uint256 urisLength
-    );
+    /// @notice Thrown when trying to set the reward contract more than once.
+    /// @param nusaReward The already set reward contract address.
+    error NusaRewardAlreadySet(address nusaReward);
 
     // ========================
     //      NusaTimelock
@@ -78,7 +60,10 @@ library Errors {
     /// @param governor The already set governor contract address.
     error GovernanceAlreadySet(address governor);
 
-    /// @notice Thrown when a function restricted to NusaQuest is called by another address.
-    /// @param caller The unauthorized caller address.
-    error NotNusaQuest(address caller);
+    // ========================
+    //        Reusable
+    // ========================
+
+    /// @notice Reverts when the caller is not the expected address.
+    error UnexpectedCaller();
 }

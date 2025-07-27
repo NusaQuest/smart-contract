@@ -13,6 +13,7 @@ import {NusaTimelock} from "./NusaTimelock.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Errors} from "./lib/Errors.l.sol";
 import {Events} from "./lib/Events.l.sol";
+import {console} from "forge-std/console.sol";
 
 /**
  * @title NusaQuest
@@ -80,8 +81,8 @@ contract NusaQuest is
     /// @notice Tracks the total number of quests executed by a user
     mapping(address => uint256) private s_totalQuestsExecuted;
 
-    /// @notice Whether an address has minting permission
-    mapping(address => bool) private s_canMint;
+    /// @notice Stores the registered identity hash for each user.
+    mapping(address => string) private s_identityHash;
 
     /// @notice Array of all proposal IDs
     uint256[] private s_proposalIds;
@@ -104,9 +105,6 @@ contract NusaQuest is
     /// @notice Governance token contract (ERC20Votes)
     NusaToken private i_nusaToken;
 
-    /// @notice Timelock controller for proposal execution
-    NusaTimelock private i_nusaTimelock;
-
     /// @dev Validates proposal existence matches expectation (should exist or not)
     modifier validateProposalExistence(uint256 _proposalId, bool _expected) {
         _checkProposalExistence(_proposalId, _expected);
@@ -119,12 +117,6 @@ contract NusaQuest is
         _;
     }
 
-    /// @dev Validates if user has permission to mint NFT (admin-only in most cases)
-    modifier validateMintAccess(address _user) {
-        _checkMintAccess(_user);
-        _;
-    }
-
     /// @dev Ensures proposal is in the expected state (Pending, Active, Succeeded, etc.)
     modifier validateState(uint256 _proposalId, ProposalState _expected) {
         _checkState(_proposalId, _expected);
@@ -134,6 +126,29 @@ contract NusaQuest is
     /// @dev Ensures current time is still within the allowed quest completion window
     modifier validateQuestDeadline(uint256 _proposalId) {
         _checkQuestDeadline(_proposalId);
+        _;
+    }
+
+    /// @dev Ensures that the user has registered their identity before proceeding.
+    /// @dev Reverts with `IdentityNotRegistered` if the user has not registered.
+    /// @param _user Address of the user to validate.
+    modifier validateIdentity(address _user) {
+        _checkIdentity(_user);
+        _;
+    }
+
+    /// @dev Ensures that the caller matches the expected address before proceeding.
+    /// @dev Reverts with `UnexpectedCaller` if the caller is not the expected address.
+    /// @param _expectedCaller The address that is authorized to call the function.
+    modifier validateCaller(address _expectedCaller) {
+        _checkCaller(_expectedCaller, msg.sender);
+        _;
+    }
+
+    /// @dev Modifier to ensure NusaQuest address is only initialized once.
+    /// @dev Reverts if NusaQuest address has already been set.
+    modifier onlyBeforeNusaQuestSet() {
+        _checkBeforeNusaQuestSet();
         _;
     }
 
@@ -158,11 +173,15 @@ contract NusaQuest is
         GovernorVotesQuorumFraction(_quorum)
         GovernorTimelockControl(_timelock)
     {
-        i_nusaReward = new NusaReward(address(this));
         i_nusaToken = _token;
-        i_nusaTimelock = _timelock;
         i_nusaToken.setNusaQuest(address(this));
-        s_canMint[msg.sender] = true;
+    }
+
+    function registerIdentity(
+        address _user,
+        string memory _hash
+    ) external validateCaller(msg.sender) {
+        s_identityHash[_user] = _hash;
     }
 
     /// @notice Creates a new on-chain quest proposal.
@@ -180,7 +199,11 @@ contract NusaQuest is
         uint256[] memory _values,
         bytes[] memory _calldatas,
         string memory _description
-    ) external validateLastActionTimestamp(msg.sender, Action.PROPOSE) {
+    )
+        external
+        validateLastActionTimestamp(msg.sender, Action.PROPOSE)
+        validateIdentity(msg.sender)
+    {
         uint256 proposalId = propose(
             _targets,
             _values,
@@ -214,6 +237,7 @@ contract NusaQuest is
         string calldata _reason
     )
         external
+        validateIdentity(msg.sender)
         validateProposalExistence(_proposalId, true)
         validateLastActionTimestamp(msg.sender, Action.VOTE)
         returns (uint256)
@@ -232,6 +256,7 @@ contract NusaQuest is
     /// @dev Burns the equivalent amount of $NUSA and transfers the NFT to the user.
     /// @dev Emits a {Swapped} event.
     function swap(uint256 _nftId) external nonReentrant {
+        console.log(msg.sender, "aaaa");
         uint256 amount = i_nusaReward.nftPrice(_nftId);
         i_nusaToken.burn(msg.sender, amount);
         i_nusaReward.transfer(_nftId, msg.sender);
@@ -266,6 +291,7 @@ contract NusaQuest is
         string memory _proof
     )
         external
+        validateIdentity(msg.sender)
         validateProposalExistence(_proposalId, true)
         validateState(_proposalId, ProposalState.Executed)
         validateQuestDeadline(_proposalId)
@@ -279,61 +305,17 @@ contract NusaQuest is
         emit Events.Claimed(msg.sender, PARTICIPANT_REWARD);
     }
 
-    /// @notice Mints new NFTs to the quest reward pool.
-    /// @param _ids Array of NFT IDs.
-    /// @param _values Amount of each NFT to mint.
-    /// @param _prices Price of each NFT in $NUSA.
-    /// @param _uris IPFS URIs for each NFT.
-    /// @dev Only authorized minters can call this.
-    /// @dev Emits a {Minted} event.
-    function mint(
-        uint256[] memory _ids,
-        uint256[] memory _values,
-        uint256[] memory _prices,
-        string[] memory _uris
-    ) external validateMintAccess(msg.sender) {
-        i_nusaReward.mint(_ids, _values, _prices, _uris);
-
-        emit Events.Minted(_ids);
+    function setNusaReward(
+        NusaReward _nusaReward
+    ) external onlyBeforeNusaQuestSet {
+        i_nusaReward = _nusaReward;
     }
 
-    /// @notice Returns the metadata URI of a specific NFT.
-    /// @param _id ID of the NFT.
-    /// @return The full IPFS URI of the NFT.
-    function uri(uint256 _id) external view returns (string memory) {
-        return i_nusaReward.uri(_id);
-    }
-
-    /// @notice Returns the price of a specific NFT in $NUSA.
-    /// @param _id ID of the NFT.
-    /// @return The price in $NUSA tokens.
-    function nftPrice(uint256 _id) external view returns (uint256) {
-        return i_nusaReward.nftPrice(_id);
-    }
-
-    /// @notice Returns the NFT balance of a user for a specific NFT ID.
-    /// @param _user Address of the user.
-    /// @param _nftId ID of the NFT.
-    /// @return The amount of NFT owned by the user.
-    function nftBalance(
-        address _user,
-        uint256 _nftId
-    ) external view returns (uint256) {
-        return i_nusaReward.balanceOf(_user, _nftId);
-    }
-
-    /// @notice Returns the fungible token ($NUSA) balance of a user.
-    /// @param _user Address of the user.
-    /// @return The $NUSA token balance.
-    function ftBalance(address _user) external view returns (uint256) {
-        return i_nusaToken.balanceOf(_user);
-    }
-
-    /// @notice Checks if an address is authorized to mint NFTs.
-    /// @param _user Address to check.
-    /// @return True if the address is authorized to mint, false otherwise.
-    function isAuthorizedMinter(address _user) external view returns (bool) {
-        return s_canMint[_user];
+    /// @dev Checks whether the identity of a user has already been registered.
+    /// @param _user The address of the user to check.
+    /// @return True if the user has already registered an identity, false otherwise.
+    function isAlreadyRegistered(address _user) external view returns (bool) {
+        return bytes(s_identityHash[_user]).length > 0 ? true : false;
     }
 
     /// @notice Returns the duration of the voting period in blocks.
@@ -478,13 +460,6 @@ contract NusaQuest is
         );
     }
 
-    /// @dev Checks if a user has permission to mint NFTs.
-    /// @dev Reverts with `MintAccessDenied` if not authorized.
-    /// @param _user Address of the user.
-    function _checkMintAccess(address _user) private view {
-        require(s_canMint[_user], Errors.MintAccessDenied(_user));
-    }
-
     /// @dev Checks whether the participant is still within the allowed quest completion period.
     /// @dev Reverts with `QuestExpired` if the current time has passed the deadline.
     /// @param _proposalId ID of the proposal representing the quest.
@@ -496,6 +471,36 @@ contract NusaQuest is
                 (proposalEta(_proposalId) + QUEST_DEADLINE),
                 block.timestamp
             )
+        );
+    }
+
+    /// @dev Checks whether the user has registered their identity.
+    /// @dev Reverts with `IdentityAlreadyRegistered` if the identity hash is empty.
+    /// @param _user Address of the user to be checked.
+    function _checkIdentity(address _user) private view {
+        require(
+            bytes(s_identityHash[_user]).length > 0,
+            Errors.IdentityNotRegistered(_user)
+        );
+    }
+
+    /// @dev Internal pure function to validate that the actual caller matches the expected caller.
+    /// @param _expectedCaller The address that is authorized to call the function.
+    /// @param _actualCaller The address attempting to call the function.
+    /// @notice Reverts with `UnexpectedCaller` error if the callers do not match.
+    function _checkCaller(
+        address _expectedCaller,
+        address _actualCaller
+    ) private pure {
+        require(_expectedCaller == _actualCaller, Errors.UnexpectedCaller());
+    }
+
+    /// @dev Internal check to ensure the NusaQuest (reward) address hasn't been set yet.
+    /// @notice Reverts with `NusaRewardAlreadySet` if `i_nusaReward` is already initialized.
+    function _checkBeforeNusaQuestSet() private view {
+        require(
+            address(i_nusaReward) == address(0),
+            Errors.NusaRewardAlreadySet(address(i_nusaReward))
         );
     }
 

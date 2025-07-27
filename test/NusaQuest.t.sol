@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import {Test, console} from "forge-std/Test.sol";
 import {NusaQuest} from "../src/NusaQuest.sol";
 import {NusaToken} from "../src/NusaToken.sol";
+import {NusaReward} from "../src/NusaReward.sol";
 import {NusaTimelock} from "../src/NusaTimelock.sol";
 import {Errors} from "../src/lib/Errors.l.sol";
 
@@ -13,17 +14,22 @@ contract NusaQuestTest is Test {
     /// @dev Core contract instances and reusable test data
     NusaQuest private nusaQuest;
     NusaToken private nusaToken;
+    NusaReward private nusaReward;
 
     /// @dev Test addresses representing different actors
     address private constant BOB = address(1);
     address private constant ALICE = address(2);
     address private constant CHARLIE = address(3);
+    address private constant NFT_MINTER = address(4);
 
     /// @dev Reusable arrays for constructing proposals data
     address[] private _targets = new address[](1);
     uint256[] private _values = new uint256[](1);
     bytes[] private _calldatas = new bytes[](1);
     string private _description = "lorem ipsum dolor sit amet";
+
+    /// @dev Reusable hash for delegation
+    string private _hash = "0x1";
 
     /// @dev Reusable arrays for constructing NFTs data
     uint256[] private _ids = new uint256[](2);
@@ -46,8 +52,8 @@ contract NusaQuestTest is Test {
      */
     function setUp() public {
         uint256 minDelay = 10 minutes;
-        uint32 votingDelay = 300; // ~10 minutes
-        uint32 votingPeriod = 300; // ~10 minutes
+        uint32 votingDelay = 300;
+        uint32 votingPeriod = 300;
         uint256 quorum = 1;
 
         nusaToken = new NusaToken();
@@ -65,7 +71,12 @@ contract NusaQuestTest is Test {
             quorum
         );
 
+        vm.startPrank(NFT_MINTER);
+        nusaReward = new NusaReward(address(nusaQuest), NFT_MINTER);
+        vm.stopPrank();
+
         nusaTimelock.grantRole(address(nusaQuest));
+        nusaQuest.setNusaReward(nusaReward);
     }
 
     /**
@@ -76,15 +87,15 @@ contract NusaQuestTest is Test {
      */
     function testSuccessfullyDelegate() public {
         vm.startPrank(ALICE);
-        nusaToken.delegate();
+        nusaToken.delegate(_hash);
         vm.stopPrank();
 
-        bool expectedIsDelegate = true;
-        bool actualIsDelegate = nusaToken.isAlreadyDelegate(ALICE);
+        bool expectedDelegationStatus = true;
+        bool actualDelagationStatus = nusaQuest.isAlreadyRegistered(ALICE);
         uint256 expectedBalance = 10 * 10 ** 18;
-        uint256 actualBalance = nusaQuest.ftBalance(ALICE);
+        uint256 actualBalance = nusaToken.balanceOf(ALICE);
 
-        assertEq(expectedIsDelegate, actualIsDelegate);
+        assertEq(expectedDelegationStatus, actualDelagationStatus);
         assertEq(expectedBalance, actualBalance);
     }
 
@@ -101,6 +112,7 @@ contract NusaQuestTest is Test {
         );
 
         vm.startPrank(BOB);
+        nusaToken.delegate(_hash);
         nusaQuest.initiate(_targets, _values, _calldatas, _description);
         vm.stopPrank();
 
@@ -124,6 +136,7 @@ contract NusaQuestTest is Test {
         );
 
         vm.startPrank(BOB);
+        nusaToken.delegate(_hash);
         nusaQuest.initiate(_targets, _values, _calldatas, _description);
         nusaQuest.cancel(
             _targets,
@@ -148,6 +161,7 @@ contract NusaQuestTest is Test {
         );
 
         vm.startPrank(BOB);
+        nusaToken.delegate(_hash);
         nusaQuest.initiate(_targets, _values, _calldatas, _description);
         vm.stopPrank();
 
@@ -179,6 +193,7 @@ contract NusaQuestTest is Test {
         );
 
         vm.startPrank(BOB);
+        nusaToken.delegate(_hash);
         nusaQuest.initiate(_targets, _values, _calldatas, _description);
         vm.stopPrank();
 
@@ -204,6 +219,7 @@ contract NusaQuestTest is Test {
         );
 
         vm.startPrank(BOB);
+        nusaToken.delegate(_hash);
         nusaQuest.initiate(_targets, _values, _calldatas, _description);
         vm.stopPrank();
 
@@ -231,7 +247,7 @@ contract NusaQuestTest is Test {
      */
     function testSuccessfullyVoteOnQuest() public {
         vm.startPrank(ALICE);
-        nusaToken.delegate();
+        nusaToken.delegate(_hash);
         vm.stopPrank();
 
         vm.roll(block.number + 1);
@@ -243,6 +259,7 @@ contract NusaQuestTest is Test {
         );
 
         vm.startPrank(BOB);
+        nusaToken.delegate(_hash);
         nusaQuest.initiate(_targets, _values, _calldatas, _description);
         vm.stopPrank();
 
@@ -284,6 +301,7 @@ contract NusaQuestTest is Test {
         string memory reason = "Nice quest.";
 
         vm.startPrank(ALICE);
+        nusaToken.delegate(_hash);
         vm.expectRevert(
             abi.encodeWithSelector(
                 Errors.InvalidProposalExistence.selector,
@@ -306,12 +324,14 @@ contract NusaQuestTest is Test {
         _prices.push(10);
         _uris.push("a");
 
-        nusaQuest.mint(_ids, _nftValues, _prices, _uris);
+        vm.startPrank(NFT_MINTER);
+        nusaReward.mint(_ids, _nftValues, _prices, _uris);
+        vm.stopPrank();
 
         string memory expectedUri = "https://gateway.pinata.cloud/ipfs/a";
-        string memory actualUri = nusaQuest.uri(1);
+        string memory actualUri = nusaReward.uri(1);
         uint256 expectedPrice = 10;
-        uint256 actualPrice = nusaQuest.nftPrice(1);
+        uint256 actualPrice = nusaReward.nftPrice(1);
 
         assertEq(expectedPrice, actualPrice);
         assert(
@@ -321,51 +341,8 @@ contract NusaQuestTest is Test {
     }
 
     /**
-     * @notice Reverts when a non-authorized user attempts to mint NFTs.
-     * - BOB (not the authorized NusaQuest contract) tries to call mint().
-     * - Should revert with MintAccessDenied error.
-     */
-    function testRevertIfNonAuthorizedMintNFT() public {
-        _ids.push(1);
-        _nftValues.push(2);
-        _prices.push(10);
-        _uris.push("a");
-
-        vm.startPrank(BOB);
-        vm.expectRevert(
-            abi.encodeWithSelector(Errors.MintAccessDenied.selector, BOB)
-        );
-        nusaQuest.mint(_ids, _nftValues, _prices, _uris);
-        vm.stopPrank();
-    }
-
-    /**
-     * @notice Reverts when minting NFT with mismatched input array lengths.
-     * - Length of IDs, values, prices, and URIs arrays must match.
-     * - Should revert with InvalidInputLength error.
-     */
-    function testRevertIfInvalidLengthWhileMintNFT() public {
-        _ids.push(1);
-        _ids.push(2);
-        _nftValues.push(2);
-        _prices.push(10);
-        _uris.push("a");
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Errors.InvalidInputLength.selector,
-                _ids.length,
-                _nftValues.length,
-                _prices.length,
-                _uris.length
-            )
-        );
-        nusaQuest.mint(_ids, _nftValues, _prices, _uris);
-    }
-
-    /**
      * @notice Successfully swaps fungible tokens for an NFT.
-     * - NusaQuest mints an NFT with a price of 5 FT.
+     * - NFT_MINTER mints an NFT with a price of 5 FT.
      * - ALICE delegates to receive FT, then swaps for the NFT.
      * - Verifies updated FT and NFT balances.
      */
@@ -375,17 +352,22 @@ contract NusaQuestTest is Test {
         _prices.push(5 * 10 ** 18);
         _uris.push("a");
 
-        nusaQuest.mint(_ids, _nftValues, _prices, _uris);
+        vm.startPrank(NFT_MINTER);
+        nusaReward.mint(_ids, _nftValues, _prices, _uris);
+        vm.stopPrank();
 
         vm.startPrank(ALICE);
-        nusaToken.delegate();
+        nusaToken.delegate(_hash);
         nusaQuest.swap(1);
         vm.stopPrank();
 
+        console.log(nusaToken.balanceOf(ALICE));
+        console.log(nusaReward.nftPrice(1));
+
         uint256 expectedFtBalance = 10 * 10 ** 18 - 5 * 10 ** 18;
-        uint256 actualFtBalance = nusaQuest.ftBalance(ALICE);
+        uint256 actualFtBalance = nusaToken.balanceOf(ALICE);
         uint256 expectedNftBalance = 1;
-        uint256 actualNftBalance = nusaQuest.nftBalance(ALICE, 1);
+        uint256 actualNftBalance = nusaReward.balanceOf(ALICE, 1);
 
         assertEq(expectedFtBalance, actualFtBalance);
         assertEq(expectedNftBalance, actualNftBalance);
@@ -406,11 +388,12 @@ contract NusaQuestTest is Test {
         );
 
         vm.startPrank(BOB);
+        nusaToken.delegate(_hash);
         nusaQuest.initiate(_targets, _values, _calldatas, _description);
         vm.stopPrank();
 
         vm.startPrank(ALICE);
-        nusaToken.delegate();
+        nusaToken.delegate(_hash);
         vm.stopPrank();
 
         vm.roll(block.number + 1);
@@ -443,13 +426,14 @@ contract NusaQuestTest is Test {
         );
 
         vm.startPrank(CHARLIE);
+        nusaToken.delegate(_hash);
         nusaQuest.claimParticipantReward(proposalId, "NusaQuest");
         vm.stopPrank();
 
-        uint256 expectedBobFtBalance = 10 * 10 ** 18;
-        uint256 actualBobFtBalance = nusaQuest.ftBalance(BOB);
-        uint256 expectedCharlieFtBalance = 40 * 10 ** 18;
-        uint256 actualCharlieFtBalance = nusaQuest.ftBalance(CHARLIE);
+        uint256 expectedBobFtBalance = 20 * 10 ** 18;
+        uint256 actualBobFtBalance = nusaToken.balanceOf(BOB);
+        uint256 expectedCharlieFtBalance = 50 * 10 ** 18;
+        uint256 actualCharlieFtBalance = nusaToken.balanceOf(CHARLIE);
         string memory expectedProof = "NusaQuest";
         string memory actualProof = nusaQuest
         .userSubmissionHistory(CHARLIE)[0].proof;
@@ -485,11 +469,12 @@ contract NusaQuestTest is Test {
         );
 
         vm.startPrank(BOB);
+        nusaToken.delegate(_hash);
         nusaQuest.initiate(_targets, _values, _calldatas, _description);
         vm.stopPrank();
 
         vm.startPrank(ALICE);
-        nusaToken.delegate();
+        nusaToken.delegate(_hash);
         vm.stopPrank();
 
         vm.roll(block.number + 1);
@@ -523,6 +508,7 @@ contract NusaQuestTest is Test {
 
         vm.warp(block.timestamp + 1 days);
         vm.startPrank(CHARLIE);
+        nusaToken.delegate(_hash);
         vm.expectRevert(
             abi.encodeWithSelector(
                 Errors.QuestExpired.selector,

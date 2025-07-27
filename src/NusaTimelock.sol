@@ -21,7 +21,7 @@ contract NusaTimelock is TimelockController {
      * Used to prevent re-granting of roles after initial setup.
      */
     modifier onlyOnce() {
-        require(!_isInit, Errors.AlreadyGranted());
+        _checkOnlyOnce();
         _;
     }
 
@@ -51,5 +51,10 @@ contract NusaTimelock is TimelockController {
         _isInit = true;
 
         emit Events.Granted(_nusaQuest, _nusaQuest, _nusaQuest);
+    }
+
+    /// @dev Internal check to ensure roles are not granted more than once.
+    function _checkOnlyOnce() private view {
+        require(!_isInit, Errors.AlreadyGranted());
     }
 }

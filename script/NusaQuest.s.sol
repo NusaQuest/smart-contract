@@ -5,31 +5,39 @@ import {Script, console} from "forge-std/Script.sol";
 import {NusaToken} from "../src/NusaToken.sol";
 import {NusaTimelock} from "../src/NusaTimelock.sol";
 import {NusaQuest} from "../src/NusaQuest.sol";
-import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {NusaReward} from "../src/NusaReward.sol";
 
 /**
- * @notice Deploys and initializes NusaToken, NusaTimelock, and NusaQuest contracts for testing.
- * - Sets the `minDelay`, `votingDelay`, `votingPeriod`, and `quorum` for governance parameters.
+ * @notice Deploys and initializes the Nusa governance contracts:
  * - Deploys `NusaToken` as the governance token.
- * - Deploys `NusaTimelock` with empty proposer and executor arrays, and an admin address.
- * - Deploys `NusaQuest` with the token, timelock, and governance parameters.
- * - Grants the NusaQuest contract role access in the timelock controller.
+ * - Deploys `NusaTimelock` with custom delay, proposers, executors, and admin.
+ * - Deploys `NusaQuest` as the governance logic contract.
+ * - Deploys `NusaReward` as the reward handler tied to `NusaQuest`.
+ * - Grants role to `NusaQuest` in the timelock and links reward contract.
+ *
+ * @dev Parameters:
+ * - `minDelay`: Delay before a queued proposal can be executed (10 minutes).
+ * - `votingDelay`: Number of blocks before voting starts (300).
+ * - `votingPeriod`: Duration of voting (300 blocks).
+ * - `quorum`: Minimum number of votes required to pass (1).
+ *
+ * Timelock roles (`i_proposers`, `i_executors`, `i_admin`) can be preconfigured or left empty for testing.
  */
 contract NusaQuestScript is Script {
-    /// @dev Used to initialize the TimelockController contract.
-    /// - `i_proposers`: list of addresses allowed to propose actions to the timelock (usually left empty, then granted later).
-    /// - `i_executors`: list of addresses allowed to execute queued proposals (can be open or specific).
-    /// - `i_admin`: initial admin address for the TimelockController (often set to address(0) or the deployer for tests).
+    /// @dev Used to initialize the TimelockController.
     address[] private i_proposers;
     address[] private i_executors;
     address private i_admin;
 
-    /// @notice Placeholder `run` function. Can be used to manually trigger logic for scripts or testing via external call.
+    /// @notice Entry point to deploy contracts with deployer's private key from env.
     function run() external {
-        vm.startBroadcast();
+        uint256 deployerKey = vm.envUint("PRIVATE_KEY");
+
+        vm.startBroadcast(deployerKey);
+
         uint256 minDelay = 10 minutes;
-        uint32 votingDelay = 300; // ~10 minutes
-        uint32 votingPeriod = 300; // ~10 minutes
+        uint32 votingDelay = 300;
+        uint32 votingPeriod = 300;
         uint256 quorum = 1;
 
         NusaToken nusaToken = new NusaToken();
@@ -46,8 +54,12 @@ contract NusaQuestScript is Script {
             votingPeriod,
             quorum
         );
+
+        NusaReward nusaReward = new NusaReward(address(nusaQuest), msg.sender);
+
         nusaTimelock.grantRole(address(nusaQuest));
+        nusaQuest.setNusaReward(nusaReward);
+
         vm.stopBroadcast();
     }
-    //
 }

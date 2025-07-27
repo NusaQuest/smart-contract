@@ -4,10 +4,12 @@ pragma solidity ^0.8.28;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Votes} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Errors} from "./lib/Errors.l.sol";
 import {Events} from "./lib/Events.l.sol";
+import {NusaQuest} from "./NusaQuest.sol";
 
 /**
  * @title NusaToken
@@ -16,9 +18,9 @@ import {Events} from "./lib/Events.l.sol";
  * The token supports on-chain governance via delegated voting power. Only the designated NusaQuest contract
  * can mint and burn tokens to enforce governance control.
  */
-contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
-    /// @notice Address of the authorized governance contract (NusaQuest)
-    address private s_nusaQuest;
+contract NusaToken is ERC20, ERC20Votes, ERC20Permit, ReentrancyGuard {
+    /// @notice Payable address of the authorized governance contract (NusaQuest)
+    address payable private s_nusaQuest;
 
     /// @notice Initial reward given to a new user upon delegation
     uint256 private constant NEW_USER_REWARD = 10;
@@ -30,10 +32,7 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * @dev Restricts a function to be callable only once — used to set the governance contract.
      */
     modifier onlyOnce() {
-        require(
-            s_nusaQuest == address(0),
-            Errors.GovernanceAlreadySet(s_nusaQuest)
-        );
+        _checkOnlyOnce();
         _;
     }
 
@@ -42,10 +41,7 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * Used to ensure that delegation and reward minting only happen on the first delegation.
      */
     modifier onlyNewDelegator() {
-        require(
-            !s_alreadyDelegate[msg.sender],
-            Errors.AlreadyDelegated(msg.sender)
-        );
+        _checkOnlyNewDelegator();
         _;
     }
 
@@ -53,7 +49,7 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * @dev Restricts access to functions to the NusaQuest contract only.
      */
     modifier onlyNusaQuest() {
-        require(msg.sender == s_nusaQuest, Errors.NotNusaQuest(msg.sender));
+        _checkOnlyNusaQuest();
         _;
     }
 
@@ -68,7 +64,7 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
      * @param _nusaQuest Address of the deployed NusaQuest contract.
      */
     function setNusaQuest(address _nusaQuest) external onlyOnce {
-        s_nusaQuest = _nusaQuest;
+        s_nusaQuest = payable(_nusaQuest);
     }
 
     /**
@@ -107,25 +103,46 @@ contract NusaToken is ERC20, ERC20Votes, ERC20Permit {
 
     /**
      * @notice Delegates voting power to the sender's own address.
-     * @dev Also mints an initial reward if user hasn't delegated before.
-     * Helps bootstrap governance participation.
-     * Uses onlyNewDelegator modifier to ensure it's only done once.
+     * @dev Reverts if the user has already delegated (via `onlyNewDelegator`).
+     * Also registers user identity and mints initial reward.
+     * @param _hash Hash used to register user identity.
      */
-    function delegate() external onlyNewDelegator {
+    function delegate(
+        string memory _hash
+    ) external onlyNewDelegator nonReentrant {
         super.delegate(msg.sender);
         s_alreadyDelegate[msg.sender] = true;
+        NusaQuest(s_nusaQuest).registerIdentity(msg.sender, _hash);
         mint(msg.sender, NEW_USER_REWARD);
 
         emit Events.Delegated(msg.sender);
     }
 
-    /**
-     * @notice Checks if a given user has already delegated their voting power.
-     * @param _user Address to check
-     * @return True if user has delegated, false otherwise
-     */
-    function isAlreadyDelegate(address _user) external view returns (bool) {
-        return s_alreadyDelegate[_user];
+    /// @dev Checks that the NusaQuest address has not been set yet.
+    /// @dev Reverts with `GovernanceAlreadySet` if the address has already been initialized.
+    /// @notice Used to ensure the NusaQuest contract address can only be set once.
+    function _checkOnlyOnce() private view {
+        require(
+            s_nusaQuest == address(0),
+            Errors.GovernanceAlreadySet(s_nusaQuest)
+        );
+    }
+
+    /// @dev Checks that the caller has not already delegated to someone else.
+    /// @dev Reverts with `AlreadyDelegated` if the caller has already assigned a delegate.
+    /// @notice Used to prevent double delegation by the same user.
+    function _checkOnlyNewDelegator() private view {
+        require(
+            !s_alreadyDelegate[msg.sender],
+            Errors.AlreadyDelegated(msg.sender)
+        );
+    }
+
+    /// @dev Ensures that only the NusaQuest contract can call the function.
+    /// @dev Reverts with `UnexpectedCaller` if called by an unauthorized address.
+    /// @notice Used to restrict access to internal functions to NusaQuest only.
+    function _checkOnlyNusaQuest() private view {
+        require(msg.sender == s_nusaQuest, Errors.UnexpectedCaller());
     }
 
     /**
