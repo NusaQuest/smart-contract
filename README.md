@@ -81,7 +81,7 @@ VERIFIER=blockscout
 
 # 🔗 Custom verifier URL (needed for blockscout)
 VERIFIER_URL=https://sepolia-blockscout.lisk.com/api/
-
+```
 
 ## 🤝 Contributors
 
@@ -89,4 +89,3 @@ VERIFIER_URL=https://sepolia-blockscout.lisk.com/api/
   - 🐙 Github : [View Profile](https://github.com/yebology)
   - 💼 Linkedin : [View Profile](https://linkedin.com/in/yobelnathanielfilipus)
   - 📧 Email : [yobelnathaniel12@gmail.com](mailto:yobelnathaniel12@gmail.com)
-```
