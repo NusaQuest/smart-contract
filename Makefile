@@ -2,6 +2,9 @@
 
 include .env
 
+install:
+	forge install
+
 build:
 	forge build
 

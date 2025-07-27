@@ -19,9 +19,76 @@
     │   ├── Makefile          # Automation commands for building, testing, and deploying
     │   └── foundry.toml      # Foundry configuration file (e.g., compiler version, optimizer)
     ```
+
+## 🧭 How to Run
+
+This project uses [Foundry](https://book.getfoundry.sh/) and a custom `Makefile` for a smoother development experience.  
+Just run `make <task>` without remembering long commands!
+
+---
+
+### 📦 1. Install Foundry
+
+If you haven’t installed Foundry yet:
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
+```
+
+### 📁 2. Clone Repository
+
+```bash
+> git clone https://github.com/NusaQuest/smart-contract
+> cd smart-contract
+```
+
+### 📚 3. Install Dependencies
+
+```bash
+> make install
+```
+
+### 🔨 4. Compile Contracts
+
+```bash
+> make build
+```
+
+### 🧪 5. Run Test
+
+```bash
+> make test
+```
+
+### 🎯 6. Deploy and Verify Contracts
+
+```bash
+> make deploy-verify
+```
+
+## 🔐 .env Configuration
+
+Before running deploy or verification commands, make sure your `.env` file is properly set up in the root directory.
+
+```env
+# 🔑 Private key of your deployer wallet (NEVER share this)
+PRIVATE_KEY=your_private_key_here
+
+# 🌐 RPC URL of the target network
+RPC_URL=https://sepolia.optimism.io
+
+# 🛡️ Set verifier type: "etherscan" or "blockscout"
+VERIFIER=blockscout
+
+# 🔗 Custom verifier URL (needed for blockscout)
+VERIFIER_URL=https://sepolia-blockscout.lisk.com/api/
+
+
 ## 🤝 Contributors
 
 - 🧑 Yobel Nathaniel Filipus :
   - 🐙 Github : [View Profile](https://github.com/yebology)
   - 💼 Linkedin : [View Profile](https://linkedin.com/in/yobelnathanielfilipus)
   - 📧 Email : [yobelnathaniel12@gmail.com](mailto:yobelnathaniel12@gmail.com)
+```
