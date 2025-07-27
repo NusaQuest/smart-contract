@@ -25,8 +25,6 @@
 This project uses [Foundry](https://book.getfoundry.sh/) and a custom `Makefile` for a smoother development experience.  
 Just run `make <task>` without remembering long commands!
 
----
-
 ### 📦 1. Install Foundry
 
 If you haven’t installed Foundry yet:
