@@ -74,7 +74,7 @@ Before running deploy or verification commands, make sure your `.env` file is pr
 PRIVATE_KEY=your_private_key_here
 
 # 🌐 RPC URL of the target network
-RPC_URL=https://sepolia.optimism.io
+RPC_URL=https://rpc.sepolia-api.lisk.com
 
 # 🛡️ Set verifier type: "etherscan" or "blockscout"
 VERIFIER=blockscout
