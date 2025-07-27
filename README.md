@@ -4,15 +4,15 @@
 
 🌏 NusaQuest is an impact-to-earn platform powered by AI 🤖 and DAO 🧠, built on the Lisk Sepolia network 🛰️, that turns real-world environmental actions into meaningful digital rewards. Through beach cleanups across Indonesia 🇮🇩, anyone can earn NUSA tokens 💰 and redeem them for NFT concert tickets 🎫. With KYC verification via OCR of KTP 🪪🔍, NusaQuest ensures trusted participation while bridging Web3 🌐 with real-world impact 🌱. It makes caring for the environment fun and rewarding — while empowering communities through transparent, decentralized systems and meaningful incentives.
 
-| 🔧 Purpose               | 📦 OpenZeppelin Module                                                                 | 📄 Description                                                                 |
-|-------------------------|-----------------------------------------------------|--------------------------------------------------------------------------------|
-| 🪙 Fungible Token (Nusa Token) | `ERC20`, `ERC20Votes`, `ERC20Permit`                                                    | Fungible token with support for on-chain voting and off-chain approvals (via signatures) |
-| 🗳️ DAO Governance        | `Governor`, `GovernorSettings`, `GovernorCountingSimple`, `GovernorVotes`, `GovernorVotesQuorumFraction`, `GovernorTimelockControl` | Complete DAO module for proposals, voting, and secured execution via timelock |
-| 🎟️ NFT Concert Tickets   | `ERC1155`, `ERC1155URIStorage`, `ERC1155Holder`                                         | ERC-1155 NFTs used as concert tickets, claimable by participating in beach cleanups |
-| ⏳ Timelocked Execution    | `TimelockController`                                                                   | Adds a delay to proposal execution for enhanced security and transparency      |
-| 🛡️ Security              | `ReentrancyGuard`                                                                      | Protects critical functions from reentrancy attacks during token/NFT claims    |
+| 🔧 Purpose                     | 📦 OpenZeppelin Module                                                                                                              | 📄 Description                                                                                        |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 🪙 Fungible Token (Nusa Token) | `ERC20`, `ERC20Votes`, `ERC20Permit`                                                                                                | Fungible token with support for on-chain voting and off-chain approvals (via signatures)              |
+| 🗳️ DAO Governance              | `Governor`, `GovernorSettings`, `GovernorCountingSimple`, `GovernorVotes`, `GovernorVotesQuorumFraction`, `GovernorTimelockControl` | Complete DAO module for proposals, voting, and secured execution via timelock                         |
+| 🎟️ NFT Concert Tickets         | `ERC1155`, `ERC1155URIStorage`, `ERC1155Holder`                                                                                     | ERC-1155 NFTs serve as concert tickets, claimable by swapping NUSA earned from beach cleanups. |
 
-
+|
+| ⏳ Timelocked Execution | `TimelockController` | Adds a delay to proposal execution for enhanced security and transparency |
+| 🛡️ Security | `ReentrancyGuard` | Protects critical functions from reentrancy attacks |
 
 ## 🧩 Architecture
 
