@@ -19,3 +19,9 @@
     │   ├── Makefile          # Automation commands for building, testing, and deploying
     │   └── foundry.toml      # Foundry configuration file (e.g., compiler version, optimizer)
     ```
+## 🤝 Contributors
+
+- 🧑 Yobel Nathaniel Filipus :
+  - 🐙 Github : [View Profile](https://github.com/yebology)
+  - 💼 Linkedin : [View Profile](https://linkedin.com/in/yobelnathanielfilipus)
+  - 📧 Email : [yobelnathaniel12@gmail.com](mailto:yobelnathaniel12@gmail.com)
