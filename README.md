@@ -1,8 +1,8 @@
-# NusaQuest : Beaches aren't gonna clean themselves. 🚀
+# NusaQuest : Turn River Cleanups into Concert Ticket NFTs. 🚀
 
 ## ✨ Overview
 
-🌏 NusaQuest is an impact-to-earn platform powered by AI 🤖 and DAO 🧠, built on the Lisk Sepolia network 🛰️, that turns real-world environmental actions into meaningful digital rewards. Through beach cleanups across Indonesia 🇮🇩, anyone can earn NUSA tokens 💰 and redeem them for NFT concert tickets 🎫. With KYC verification via OCR of KTP 🪪🔍, NusaQuest ensures trusted participation while bridging Web3 🌐 with real-world impact 🌱. It makes caring for the environment fun and rewarding — while empowering communities through transparent, decentralized systems and meaningful incentives.
+🌏 NusaQuest is an AI 🤖 and DAO 🧠-powered impact-to-earn platform on Lisk Sepolia 🛰️ that rewards you for joining river cleanups across Indonesia 🇮🇩. Collect trash before it reaches the ocean 🌊, earn NUSA tokens 💰, and redeem them for NFT concert tickets 🎫. With KTP-based KYC 🪪🔍, NusaQuest bridges real-world action 🌱 with the power of Web3 🌐.
 
 ## 🔒 Built with OpenZeppelin Contracts
 
