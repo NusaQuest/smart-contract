@@ -35,7 +35,7 @@ contract NusaQuestScript is Script {
 
         vm.startBroadcast(deployerKey);
 
-        uint256 minDelay = 10 minutes;
+        uint256 minDelay = 5 minutes;
         uint32 votingDelay = 300;
         uint32 votingPeriod = 300;
         uint256 quorum = 1;

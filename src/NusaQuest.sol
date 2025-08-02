@@ -94,7 +94,7 @@ contract NusaQuest is
     uint256 private constant PARTICIPANT_REWARD = 40;
 
     /// @notice Cooldown between actions
-    uint256 private constant ACTION_COOLDOWN_PERIOD = 10 minutes;
+    uint256 private constant ACTION_COOLDOWN_PERIOD = 5 minutes;
 
     /// @notice Deadline to complete a quest after execution
     uint256 private constant QUEST_DEADLINE = 10 minutes;

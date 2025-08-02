@@ -1,8 +1,8 @@
-# NusaQuest : Turn River Cleanups into Concert Ticket NFTs. 🚀
+# NusaQuest : Turn River Cleanups into NFT Concert Tickets. 🚀
 
 ## ✨ Overview
 
-🌏 NusaQuest is an AI 🤖 and DAO 🧠-powered impact-to-earn platform on Lisk Sepolia 🛰️ that rewards you for joining river cleanups across Indonesia 🇮🇩. Collect trash before it reaches the ocean 🌊, earn NUSA tokens 💰, and redeem them for NFT concert tickets 🎫. With KTP-based KYC 🪪🔍, NusaQuest bridges real-world action 🌱 with the power of Web3 🌐.
+🌏 NusaQuest is an impact-to-earn platform that powered by AI 🤖 and DAO 🧠 on Lisk Sepolia 🛰️ that rewards user for joining river cleanups across Indonesia 🇮🇩. Collect trash before it reaches the ocean 🌊, earn NUSA tokens 💰, and redeem them for NFT concert tickets 🎫. With KTP-based KYC 🪪🔍, NusaQuest bridges real-world action 🌱 with the power of Web3 🌐.
 
 ## 🔒 Built with OpenZeppelin Contracts
 
